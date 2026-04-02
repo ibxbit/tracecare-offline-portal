@@ -1,0 +1,97 @@
+# ── AI / Claude session data ──────────────────────────────────────────────────
+.claude/
+*.claude_session
+*.claude_cache
+
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+*_credentials.json
+*_serviceaccount.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ── Node / frontend ───────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.npm/
+.pnp
+.pnp.js
+*.tsbuildinfo
+
+# ── Database files & dumps ────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+*.bak
+postgres-data/
+pgdata/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── OS / system files ─────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Editor & IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ── Docker local state ────────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Test / coverage artefacts ─────────────────────────────────────────────────
+.vitest/
+coverage/
+frontend/coverage/

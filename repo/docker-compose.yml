@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: tracecare
+      POSTGRES_USER: tracecare
+      POSTGRES_PASSWORD: tracecare
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracecare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://tracecare:tracecare@db:5432/tracecare
+      SECRET_KEY: change-me-32-char-secret-key-here-00
+      ENCRYPTION_KEY: Xk5MdUQ3c3pZSmtkekFLQ0lDN0NJcTlUMVVsR3BaTks=
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_HOURS: "12"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command: >
+      sh -c "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  tester:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://tracecare:tracecare@db:5432/tracecare
+      SECRET_KEY: change-me-32-char-secret-key-here-00
+      ENCRYPTION_KEY: Xk5MdUQ3c3pZSmtkekFLQ0lDN0NJcTlUMVVsR3BaTks=
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_HOURS: "12"
+      PYTHONPATH: /app
+      API_BASE_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./unit_tests:/unit_tests
+      - ./API_tests:/API_tests
+    command: >
+      sh -c "cd /app && python -m pytest /unit_tests /API_tests -v --tb=short --no-header"
+    profiles:
+      - test
+
+volumes:
+  pgdata:
