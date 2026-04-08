@@ -31,8 +31,16 @@ _PROXY_PROTO = sa.Enum(
 
 def upgrade() -> None:
     # ------------------------------------------------------------------
-    # 1. Shared ENUM types
+    # 1. Shared ENUM types (idempotent creation)
     # ------------------------------------------------------------------
+    # Drop valuetype ENUM if it already exists (for idempotency in dev/test)
+    op.execute("""
+    DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'valuetype') THEN
+            DROP TYPE valuetype;
+        END IF;
+    END $$;
+    """)
     _VALUE_TYPE.create(op.get_bind(), checkfirst=True)
     _TASK_STATUS.create(op.get_bind(), checkfirst=True)
     _PROXY_PROTO.create(op.get_bind(), checkfirst=True)
