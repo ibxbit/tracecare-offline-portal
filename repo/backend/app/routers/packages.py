@@ -27,6 +27,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 
+from pydantic import BaseModel
+
 from app.database import get_db
 from app.models.exam import ExamItem, Package, PackageItem
 from app.models.user import User
@@ -41,6 +43,11 @@ from app.schemas.exam import (
     ChangedItem,
     MetadataChange,
 )
+
+
+class PackageItemAddRequest(BaseModel):
+    exam_item_id: int
+    is_required: bool = True
 
 router = APIRouter(prefix="/packages", tags=["packages"])
 
@@ -610,12 +617,3 @@ def remove_item_from_package(
     return new_pkg
 
 
-# ---------------------------------------------------------------------------
-# Inline request body for add-item endpoint
-# ---------------------------------------------------------------------------
-from pydantic import BaseModel  # noqa: E402 — placed at end to avoid polluting top-level imports
-
-
-class PackageItemAddRequest(BaseModel):
-    exam_item_id: int
-    is_required: bool = True
