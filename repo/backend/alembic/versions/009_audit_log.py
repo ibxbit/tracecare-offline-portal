@@ -29,6 +29,7 @@ _AUDIT_EVENT_TYPE = sa.Enum(
 
 
 def upgrade() -> None:
+    # Create enum type via raw SQL (IF NOT EXISTS for idempotency)
     op.execute("""
     DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'auditeventtype') THEN
@@ -46,48 +47,32 @@ def upgrade() -> None:
     END $$;
     """)
 
-    op.create_table(
-        "audit_logs",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("event_type", sa.Enum(
-            "login_success", "login_failure", "login_locked", "logout",
-            "token_refresh", "token_revoked", "password_change",
-            "account_locked", "account_unlocked",
-            "sensitive_read", "export_csv", "file_download",
-            "record_created", "record_updated", "record_deleted",
-            "file_integrity_ok", "file_integrity_fail", "snapshot_created",
-            "api_key_issued", "api_key_revoked", "api_key_rotated",
-            "rate_limit_exceeded", "ip_blocked",
-            name="auditeventtype", create_type=False,
-        ), nullable=False, index=True),
-        sa.Column("user_id", sa.Integer,
-                  sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
-        sa.Column("username", sa.String(100), nullable=True),
-        sa.Column("ip_address", sa.String(45), nullable=True),
-        sa.Column("resource_type", sa.String(100), nullable=True),
-        sa.Column("resource_id", sa.String(100), nullable=True),
-        sa.Column("detail", sa.Text, nullable=True),
-        sa.Column("http_method", sa.String(10), nullable=True),
-        sa.Column("http_path", sa.String(500), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now(), index=True),
-    )
-
-    # Composite index for common query patterns
-    op.create_index(
-        "ix_audit_logs_event_user",
-        "audit_logs",
-        ["event_type", "user_id"],
-    )
-    op.create_index(
-        "ix_audit_logs_created_event",
-        "audit_logs",
-        ["created_at", "event_type"],
-    )
+    # Create table via raw SQL to bypass SQLAlchemy's automatic enum type creation
+    op.execute("""
+        CREATE TABLE audit_logs (
+            id            SERIAL PRIMARY KEY,
+            event_type    auditeventtype NOT NULL,
+            user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            username      VARCHAR(100),
+            ip_address    VARCHAR(45),
+            resource_type VARCHAR(100),
+            resource_id   VARCHAR(100),
+            detail        TEXT,
+            http_method   VARCHAR(10),
+            http_path     VARCHAR(500),
+            created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    """)
+    op.execute("CREATE INDEX ix_audit_logs_id         ON audit_logs (id)")
+    op.execute("CREATE INDEX ix_audit_logs_event_type ON audit_logs (event_type)")
+    op.execute("CREATE INDEX ix_audit_logs_user_id    ON audit_logs (user_id)")
+    op.execute("CREATE INDEX ix_audit_logs_created_at ON audit_logs (created_at)")
+    op.execute("CREATE INDEX ix_audit_logs_event_user    ON audit_logs (event_type, user_id)")
+    op.execute("CREATE INDEX ix_audit_logs_created_event ON audit_logs (created_at, event_type)")
 
 
 def downgrade() -> None:
-    op.drop_index("ix_audit_logs_created_event", table_name="audit_logs")
-    op.drop_index("ix_audit_logs_event_user", table_name="audit_logs")
+    op.execute("DROP INDEX IF EXISTS ix_audit_logs_created_event")
+    op.execute("DROP INDEX IF EXISTS ix_audit_logs_event_user")
     op.drop_table("audit_logs")
-    _AUDIT_EVENT_TYPE.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS auditeventtype")

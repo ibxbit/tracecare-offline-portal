@@ -36,7 +36,7 @@ _PROXY_PROTO = sa.Enum(
 
 def upgrade() -> None:
     # ------------------------------------------------------------------
-    # 1. Shared ENUM types (idempotent creation via raw SQL)
+    # 1. Shared ENUM types (idempotent via raw SQL)
     # ------------------------------------------------------------------
     op.execute("""
     DO $$ BEGIN
@@ -53,156 +53,142 @@ def upgrade() -> None:
     """)
 
     # ------------------------------------------------------------------
-    # 2. site_rules
+    # 2-6. Tables — all created via raw SQL to avoid SQLAlchemy
+    #       automatically re-issuing CREATE TYPE for named enum columns.
     # ------------------------------------------------------------------
-    op.create_table(
-        "site_rules",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("name", sa.String(200), nullable=False, unique=True, index=True),
-        sa.Column("value", sa.Text, nullable=False),
-        sa.Column("value_type", sa.Enum(
-            "string", "integer", "boolean", "decimal", "json",
-            name="valuetype", create_type=False,
-        ), nullable=False, server_default="string"),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("updated_by", sa.Integer, sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-    )
 
-    # ------------------------------------------------------------------
-    # 3. system_parameters
-    # ------------------------------------------------------------------
-    op.create_table(
-        "system_parameters",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("key", sa.String(200), nullable=False, unique=True, index=True),
-        sa.Column("value", sa.Text, nullable=False),
-        sa.Column("value_type", sa.Enum(
-            "string", "integer", "boolean", "decimal", "json",
-            name="valuetype", create_type=False,
-        ), nullable=False, server_default="string"),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("is_readonly", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("updated_by", sa.Integer, sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-    )
+    # site_rules
+    op.execute("""
+        CREATE TABLE site_rules (
+            id          SERIAL PRIMARY KEY,
+            name        VARCHAR(200) NOT NULL UNIQUE,
+            value       TEXT NOT NULL,
+            value_type  valuetype NOT NULL DEFAULT 'string',
+            description TEXT,
+            is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+            created_by  INTEGER NOT NULL REFERENCES users(id),
+            updated_by  INTEGER REFERENCES users(id),
+            created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    """)
+    op.execute("CREATE INDEX ix_site_rules_id   ON site_rules (id)")
+    op.execute("CREATE INDEX ix_site_rules_name ON site_rules (name)")
 
-    # Seed read-only system parameters that capture the deployment baseline
-    op.execute(
-        """
+    # system_parameters
+    op.execute("""
+        CREATE TABLE system_parameters (
+            id          SERIAL PRIMARY KEY,
+            key         VARCHAR(200) NOT NULL UNIQUE,
+            value       TEXT NOT NULL,
+            value_type  valuetype NOT NULL DEFAULT 'string',
+            description TEXT,
+            is_readonly BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_by  INTEGER REFERENCES users(id),
+            created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    """)
+    op.execute("CREATE INDEX ix_system_parameters_id  ON system_parameters (id)")
+    op.execute("CREATE INDEX ix_system_parameters_key ON system_parameters (key)")
+
+    op.execute("""
         INSERT INTO system_parameters (key, value, value_type, description, is_readonly)
         VALUES
-          ('app.version',         '1.0.0',     'string',  'Application version',                      true),
-          ('app.environment',     'production', 'string',  'Deployment environment',                   false),
-          ('exam.max_items',      '200',        'integer', 'Max exam items per package',               false),
-          ('review.rate_limit_minutes', '10',   'integer', 'Min minutes between reviews per user',     false),
-          ('cms.max_revisions',   '30',         'integer', 'Max stored CMS revisions per page',        true),
-          ('notification.retry_schedule', '[1,5,15]', 'json', 'Delivery retry schedule in minutes',   true)
+          ('app.version',               '1.0.0',     'string',  'Application version',                    TRUE),
+          ('app.environment',           'production', 'string',  'Deployment environment',                 FALSE),
+          ('exam.max_items',            '200',        'integer', 'Max exam items per package',             FALSE),
+          ('review.rate_limit_minutes', '10',         'integer', 'Min minutes between reviews per user',   FALSE),
+          ('cms.max_revisions',         '30',         'integer', 'Max stored CMS revisions per page',      TRUE),
+          ('notification.retry_schedule', '[1,5,15]', 'json',   'Delivery retry schedule in minutes',     TRUE)
         ON CONFLICT (key) DO NOTHING
-        """
-    )
+    """)
 
-    # ------------------------------------------------------------------
-    # 4. admin_tasks
-    # ------------------------------------------------------------------
-    op.create_table(
-        "admin_tasks",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("name", sa.String(300), nullable=False),
-        sa.Column("task_type", sa.String(100), nullable=False, index=True),
-        sa.Column("status", sa.Enum(
-            "pending", "running", "completed", "failed", "cancelled",
-            name="taskstatus", create_type=False,
-        ), nullable=False, server_default="pending", index=True),
-        sa.Column("priority", sa.Integer, nullable=False, server_default="5"),
-        sa.Column("payload_json", sa.Text, nullable=True),
-        sa.Column("result_json",  sa.Text, nullable=True),
-        sa.Column("error_message", sa.Text, nullable=True),
-        sa.Column("created_by",  sa.Integer, sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("assigned_to", sa.Integer, sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("external_system", sa.String(100), nullable=True, index=True),
-        sa.Column("external_ref",    sa.String(200), nullable=True),
-        sa.Column("scheduled_at",  sa.DateTime(timezone=True), nullable=True),
-        sa.Column("started_at",    sa.DateTime(timezone=True), nullable=True),
-        sa.Column("completed_at",  sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.CheckConstraint("priority >= 1 AND priority <= 10", name="ck_admin_tasks_priority_range"),
-    )
-    op.create_index("ix_admin_tasks_status_priority", "admin_tasks", ["status", "priority"])
+    # admin_tasks
+    op.execute("""
+        CREATE TABLE admin_tasks (
+            id              SERIAL PRIMARY KEY,
+            name            VARCHAR(300) NOT NULL,
+            task_type       VARCHAR(100) NOT NULL,
+            status          taskstatus NOT NULL DEFAULT 'pending',
+            priority        INTEGER NOT NULL DEFAULT 5,
+            payload_json    TEXT,
+            result_json     TEXT,
+            error_message   TEXT,
+            created_by      INTEGER REFERENCES users(id),
+            assigned_to     INTEGER REFERENCES users(id),
+            external_system VARCHAR(100),
+            external_ref    VARCHAR(200),
+            scheduled_at    TIMESTAMP WITH TIME ZONE,
+            started_at      TIMESTAMP WITH TIME ZONE,
+            completed_at    TIMESTAMP WITH TIME ZONE,
+            created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            CONSTRAINT ck_admin_tasks_priority_range CHECK (priority >= 1 AND priority <= 10)
+        )
+    """)
+    op.execute("CREATE INDEX ix_admin_tasks_id              ON admin_tasks (id)")
+    op.execute("CREATE INDEX ix_admin_tasks_task_type       ON admin_tasks (task_type)")
+    op.execute("CREATE INDEX ix_admin_tasks_status          ON admin_tasks (status)")
+    op.execute("CREATE INDEX ix_admin_tasks_external_system ON admin_tasks (external_system)")
+    op.execute("CREATE INDEX ix_admin_tasks_status_priority ON admin_tasks (status, priority)")
 
-    # ------------------------------------------------------------------
-    # 5. proxy_pool_entries
-    # ------------------------------------------------------------------
-    op.create_table(
-        "proxy_pool_entries",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("label", sa.String(200), nullable=False),
-        sa.Column("host",  sa.String(255), nullable=False),
-        sa.Column("port",  sa.Integer,     nullable=False),
-        sa.Column("protocol", sa.Enum(
-            "http", "https", "socks5",
-            name="proxyprotocol", create_type=False,
-        ), nullable=False, server_default="http"),
-        sa.Column("username",           sa.String(200), nullable=True),
-        sa.Column("password_encrypted", sa.Text,        nullable=True),
-        sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("weight",    sa.Integer, nullable=False, server_default="5"),
-        sa.Column("region",    sa.String(100), nullable=True),
-        sa.Column("last_checked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("is_healthy",      sa.Boolean, nullable=True),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.CheckConstraint("port >= 1 AND port <= 65535",   name="ck_proxy_pool_port_range"),
-        sa.CheckConstraint("weight >= 1 AND weight <= 10",  name="ck_proxy_pool_weight_range"),
-    )
+    # proxy_pool_entries
+    op.execute("""
+        CREATE TABLE proxy_pool_entries (
+            id                 SERIAL PRIMARY KEY,
+            label              VARCHAR(200) NOT NULL,
+            host               VARCHAR(255) NOT NULL,
+            port               INTEGER NOT NULL,
+            protocol           proxyprotocol NOT NULL DEFAULT 'http',
+            username           VARCHAR(200),
+            password_encrypted TEXT,
+            is_active          BOOLEAN NOT NULL DEFAULT TRUE,
+            weight             INTEGER NOT NULL DEFAULT 5,
+            region             VARCHAR(100),
+            last_checked_at    TIMESTAMP WITH TIME ZONE,
+            is_healthy         BOOLEAN,
+            created_by         INTEGER NOT NULL REFERENCES users(id),
+            created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            CONSTRAINT ck_proxy_pool_port_range   CHECK (port   >= 1 AND port   <= 65535),
+            CONSTRAINT ck_proxy_pool_weight_range CHECK (weight >= 1 AND weight <= 10)
+        )
+    """)
+    op.execute("CREATE INDEX ix_proxy_pool_entries_id ON proxy_pool_entries (id)")
 
-    # ------------------------------------------------------------------
-    # 6. api_keys
-    # ------------------------------------------------------------------
-    op.create_table(
-        "api_keys",
-        sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("label",       sa.String(200), nullable=False),
-        sa.Column("system_name", sa.String(200), nullable=False, index=True),
-        sa.Column("key_hash",    sa.String(64),  nullable=False, unique=True, index=True),
-        sa.Column("key_prefix",  sa.String(12),  nullable=False),
-        sa.Column("rate_limit_per_minute", sa.Integer, nullable=False, server_default="60"),
-        sa.Column("allowed_ips", sa.Text, nullable=True),
-        sa.Column("is_active",   sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_by",  sa.Integer, sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("usage_count",  sa.Integer, nullable=False, server_default="0"),
-        sa.Column("created_at",  sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.func.now()),
-        sa.Column("expires_at",  sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint(
-            "rate_limit_per_minute >= 1 AND rate_limit_per_minute <= 6000",
-            name="ck_api_keys_rate_limit_range",
-        ),
-    )
+    # api_keys  (no enum columns — still raw SQL for consistency)
+    op.execute("""
+        CREATE TABLE api_keys (
+            id                    SERIAL PRIMARY KEY,
+            label                 VARCHAR(200) NOT NULL,
+            system_name           VARCHAR(200) NOT NULL,
+            key_hash              VARCHAR(64)  NOT NULL UNIQUE,
+            key_prefix            VARCHAR(12)  NOT NULL,
+            rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
+            allowed_ips           TEXT,
+            is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+            created_by            INTEGER NOT NULL REFERENCES users(id),
+            last_used_at          TIMESTAMP WITH TIME ZONE,
+            usage_count           INTEGER NOT NULL DEFAULT 0,
+            created_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            expires_at            TIMESTAMP WITH TIME ZONE,
+            CONSTRAINT ck_api_keys_rate_limit_range
+                CHECK (rate_limit_per_minute >= 1 AND rate_limit_per_minute <= 6000)
+        )
+    """)
+    op.execute("CREATE INDEX ix_api_keys_id          ON api_keys (id)")
+    op.execute("CREATE INDEX ix_api_keys_system_name ON api_keys (system_name)")
+    op.execute("CREATE INDEX ix_api_keys_key_hash    ON api_keys (key_hash)")
 
 
 def downgrade() -> None:
     op.drop_table("api_keys")
     op.drop_table("proxy_pool_entries")
-    op.drop_index("ix_admin_tasks_status_priority", table_name="admin_tasks")
+    op.execute("DROP INDEX IF EXISTS ix_admin_tasks_status_priority")
     op.drop_table("admin_tasks")
     op.drop_table("system_parameters")
     op.drop_table("site_rules")
-    _PROXY_PROTO.drop(op.get_bind(), checkfirst=True)
-    _TASK_STATUS.drop(op.get_bind(), checkfirst=True)
-    _VALUE_TYPE.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS proxyprotocol")
+    op.execute("DROP TYPE IF EXISTS taskstatus")
+    op.execute("DROP TYPE IF EXISTS valuetype")
