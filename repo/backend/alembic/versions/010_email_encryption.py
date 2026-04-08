@@ -31,6 +31,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Ensure pgcrypto extension is available for digest()
+    op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+
     # 1. Add email_hash column (nullable initially for backfill)
     op.add_column(
         "users",
