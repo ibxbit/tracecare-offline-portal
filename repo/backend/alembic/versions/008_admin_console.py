@@ -14,36 +14,43 @@ down_revision: Union[str, None] = "007_cms_page_type"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# Shared ENUM type names
+# Shared ENUM type names — create_type=False prevents SQLAlchemy from
+# auto-emitting CREATE TYPE when these objects are referenced in op.create_table;
+# we manage type creation explicitly via raw SQL below.
 _VALUE_TYPE = sa.Enum(
     "string", "integer", "boolean", "decimal", "json",
     name="valuetype",
+    create_type=False,
 )
 _TASK_STATUS = sa.Enum(
     "pending", "running", "completed", "failed", "cancelled",
     name="taskstatus",
+    create_type=False,
 )
 _PROXY_PROTO = sa.Enum(
     "http", "https", "socks5",
     name="proxyprotocol",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
     # ------------------------------------------------------------------
-    # 1. Shared ENUM types (idempotent creation)
+    # 1. Shared ENUM types (idempotent creation via raw SQL)
     # ------------------------------------------------------------------
-    # Drop valuetype ENUM if it already exists (for idempotency in dev/test)
     op.execute("""
     DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'valuetype') THEN
-            DROP TYPE valuetype;
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'valuetype') THEN
+            CREATE TYPE valuetype AS ENUM ('string', 'integer', 'boolean', 'decimal', 'json');
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'taskstatus') THEN
+            CREATE TYPE taskstatus AS ENUM ('pending', 'running', 'completed', 'failed', 'cancelled');
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'proxyprotocol') THEN
+            CREATE TYPE proxyprotocol AS ENUM ('http', 'https', 'socks5');
         END IF;
     END $$;
     """)
-    _VALUE_TYPE.create(op.get_bind(), checkfirst=True)
-    _TASK_STATUS.create(op.get_bind(), checkfirst=True)
-    _PROXY_PROTO.create(op.get_bind(), checkfirst=True)
 
     # ------------------------------------------------------------------
     # 2. site_rules

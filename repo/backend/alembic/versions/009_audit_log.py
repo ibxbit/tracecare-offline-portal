@@ -24,11 +24,27 @@ _AUDIT_EVENT_TYPE = sa.Enum(
     "api_key_issued", "api_key_revoked", "api_key_rotated",
     "rate_limit_exceeded", "ip_blocked",
     name="auditeventtype",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    _AUDIT_EVENT_TYPE.create(op.get_bind(), checkfirst=True)
+    op.execute("""
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'auditeventtype') THEN
+            CREATE TYPE auditeventtype AS ENUM (
+                'login_success', 'login_failure', 'login_locked', 'logout',
+                'token_refresh', 'token_revoked', 'password_change',
+                'account_locked', 'account_unlocked',
+                'sensitive_read', 'export_csv', 'file_download',
+                'record_created', 'record_updated', 'record_deleted',
+                'file_integrity_ok', 'file_integrity_fail', 'snapshot_created',
+                'api_key_issued', 'api_key_revoked', 'api_key_rotated',
+                'rate_limit_exceeded', 'ip_blocked'
+            );
+        END IF;
+    END $$;
+    """)
 
     op.create_table(
         "audit_logs",
