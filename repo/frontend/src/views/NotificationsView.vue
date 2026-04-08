@@ -73,21 +73,25 @@
       <h2 class="text-base font-semibold text-slate-900 mb-4">Delivery Metrics (Admin)</h2>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div class="text-center">
-          <div class="text-2xl font-bold text-slate-900">{{ metrics.total_delivered ?? 0 }}</div>
+          <div class="text-2xl font-bold text-slate-900">{{ metrics.delivered ?? 0 }}</div>
           <div class="text-xs text-slate-500">Delivered</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-amber-600">{{ metrics.total_retrying ?? 0 }}</div>
+          <div class="text-2xl font-bold text-amber-600">{{ metrics.retrying ?? 0 }}</div>
           <div class="text-xs text-slate-500">Retrying</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-red-600">{{ metrics.total_failed ?? 0 }}</div>
+          <div class="text-2xl font-bold text-red-600">{{ metrics.failed ?? 0 }}</div>
           <div class="text-xs text-slate-500">Failed</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-blue-600">{{ metrics.total_pending ?? 0 }}</div>
+          <div class="text-2xl font-bold text-blue-600">{{ metrics.pending ?? 0 }}</div>
           <div class="text-xs text-slate-500">Pending</div>
         </div>
+      </div>
+      <div class="flex justify-between mt-4 pt-4 border-t border-slate-100 text-sm text-slate-600">
+        <span>Total: <strong class="text-slate-900">{{ metrics.total ?? 0 }}</strong></span>
+        <span>Delivery rate: <strong class="text-green-700">{{ (metrics.delivery_rate_pct ?? 0).toFixed(1) }}%</strong></span>
       </div>
     </div>
   </div>
@@ -109,20 +113,21 @@ const metrics = ref(null)
 
 const typeFilters = [
   { value: '', label: 'All' },
-  { value: 'order_status', label: 'Orders' },
-  { value: 'message', label: 'Messages' },
-  { value: 'system', label: 'System' },
   { value: 'info', label: 'Info' },
+  { value: 'warning', label: 'Warning' },
+  { value: 'error', label: 'Error' },
+  { value: 'success', label: 'Success' },
+  { value: 'system', label: 'System' },
 ]
 
 function formatDate(d) { return d ? new Date(d).toLocaleString() : '' }
 
 function iconEmoji(type) {
-  return { order_status: '📦', message: '💬', system: '⚙️', info: 'ℹ️' }[type] ?? '🔔'
+  return { success: '✅', warning: '⚠️', error: '❌', system: '⚙️', info: 'ℹ️' }[type] ?? '🔔'
 }
 
 function iconBg(type) {
-  return { order_status: 'bg-blue-100', message: 'bg-purple-100', system: 'bg-slate-100', info: 'bg-green-100' }[type] ?? 'bg-slate-100'
+  return { success: 'bg-green-100', warning: 'bg-amber-100', error: 'bg-red-100', system: 'bg-slate-100', info: 'bg-blue-100' }[type] ?? 'bg-slate-100'
 }
 
 function statusColor(s) {

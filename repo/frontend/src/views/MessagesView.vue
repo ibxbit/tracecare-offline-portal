@@ -27,6 +27,7 @@
     <!-- DIRECT MESSAGES -->
     <template v-if="activeMode === 'inbox' || activeMode === 'sent'">
       <div v-if="directLoading" class="text-center py-16 text-slate-400">Loading…</div>
+      <div v-else-if="directLoadError" class="text-center py-16 text-red-500">{{ directLoadError }}</div>
       <div v-else-if="!currentDirect.length" class="text-center py-16 text-slate-400">No messages.</div>
       <div v-else class="space-y-1">
         <div v-for="msg in currentDirect" :key="msg.id"
@@ -58,6 +59,7 @@
     <!-- THREADS -->
     <template v-if="activeMode === 'threads'">
       <div v-if="threadsLoading" class="text-center py-16 text-slate-400">Loading…</div>
+      <div v-else-if="threadsLoadError" class="text-center py-16 text-red-500">{{ threadsLoadError }}</div>
       <div v-else-if="!threads.length" class="text-center py-16 text-slate-400">No threads yet.</div>
       <div v-else class="space-y-2">
         <div v-for="thread in threads" :key="thread.id"
@@ -103,6 +105,7 @@
     <!-- View Direct Message Modal -->
     <Modal v-model="showDirect" :title="selectedDirect?.subject" size="lg">
       <div v-if="loadingDirect" class="py-8 text-center text-slate-400">Decrypting…</div>
+      <div v-else-if="directDetailError" class="py-8 text-center text-red-500">{{ directDetailError }}</div>
       <div v-else-if="directDetail" class="space-y-4">
         <div class="flex gap-6 text-sm text-slate-500">
           <span>From: <span class="font-medium text-slate-800">#{{ directDetail.sender_id }}</span></span>
@@ -236,10 +239,12 @@ const activeMode = ref('inbox')
 const inbox = ref([])
 const sent = ref([])
 const directLoading = ref(false)
+const directLoadError = ref('')
 const showDirect = ref(false)
 const selectedDirect = ref(null)
 const directDetail = ref(null)
 const loadingDirect = ref(false)
+const directDetailError = ref('')
 const showCompose = ref(false)
 const sending = ref(false)
 const sendError = ref('')
@@ -251,6 +256,7 @@ const currentDirect = computed(() => activeMode.value === 'inbox' ? inbox.value 
 // Threads
 const threads = ref([])
 const threadsLoading = ref(false)
+const threadsLoadError = ref('')
 const showThread = ref(false)
 const selectedThread = ref(null)
 const threadMessages = ref([])
@@ -285,18 +291,24 @@ function formatDateFull(d) { return d ? new Date(d).toLocaleString() : '' }
 
 async function fetchDirect() {
   directLoading.value = true
+  directLoadError.value = ''
   try {
     const [inboxRes, sentRes] = await Promise.all([api.get('/messages/inbox'), api.get('/messages/sent')])
     inbox.value = inboxRes.data
     sent.value = sentRes.data
+  } catch (err) {
+    directLoadError.value = err.response?.data?.detail || 'Failed to load messages.'
   } finally { directLoading.value = false }
 }
 
 async function fetchThreads() {
   threadsLoading.value = true
+  threadsLoadError.value = ''
   try {
-    const res = await api.get('/threads')
+    const res = await api.get('/messages/threads')
     threads.value = res.data
+  } catch (err) {
+    threadsLoadError.value = err.response?.data?.detail || 'Failed to load threads.'
   } finally { threadsLoading.value = false }
 }
 
@@ -318,10 +330,13 @@ async function openDirect(msg) {
   selectedDirect.value = msg
   showDirect.value = true
   loadingDirect.value = true
+  directDetailError.value = ''
   try {
     const res = await api.get(`/messages/${msg.id}`)
     directDetail.value = res.data
     if (!msg.is_read) { msg.is_read = true; await api.patch(`/messages/${msg.id}/read`) }
+  } catch (err) {
+    directDetailError.value = err.response?.data?.detail || 'Failed to load message. The content may be unavailable.'
   } finally { loadingDirect.value = false }
 }
 
@@ -356,10 +371,10 @@ async function openThread(thread) {
   threadMsgsLoading.value = true
   threadReplyBody.value = ''
   try {
-    const res = await api.get(`/threads/${thread.id}`)
+    const res = await api.get(`/messages/threads/${thread.id}`)
     threadMessages.value = res.data.messages || []
     thread.unread_count = 0
-    await api.patch(`/threads/${thread.id}/read`)
+    await api.patch(`/messages/threads/${thread.id}/read`)
     await nextTick()
     if (threadScrollEl.value) threadScrollEl.value.scrollTop = threadScrollEl.value.scrollHeight
   } finally { threadMsgsLoading.value = false }
@@ -369,7 +384,7 @@ async function sendThreadMessage() {
   if (!threadReplyBody.value.trim() || sendingMsg.value) return
   sendingMsg.value = true
   try {
-    const res = await api.post(`/threads/${selectedThread.value.id}/messages`, { body: threadReplyBody.value })
+    const res = await api.post(`/messages/threads/${selectedThread.value.id}/messages`, { body: threadReplyBody.value })
     threadMessages.value.push(res.data)
     threadReplyBody.value = ''
     await nextTick()
@@ -378,7 +393,7 @@ async function sendThreadMessage() {
 }
 
 async function archiveThread() {
-  await api.patch(`/threads/${selectedThread.value.id}/archive`)
+  await api.patch(`/messages/threads/${selectedThread.value.id}/archive`)
   selectedThread.value.is_archived = true
 }
 
@@ -388,7 +403,7 @@ async function resolveAlias() {
   for (const msg of threadMessages.value) {
     if (msg.sender_alias && !aliases[msg.sender_alias]) {
       try {
-        const res = await api.get(`/threads/${selectedThread.value.id}/resolve-alias/${msg.sender_alias}`)
+        const res = await api.get(`/messages/threads/${selectedThread.value.id}/resolve-alias/${msg.sender_alias}`)
         aliases[msg.sender_alias] = res.data
       } catch { aliases[msg.sender_alias] = 'Unknown' }
     }
@@ -407,7 +422,7 @@ async function handleNewThread() {
   creatingThread.value = true
   try {
     const ids = threadForm.value.participantIds.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-    await api.post('/threads', {
+    await api.post('/messages/threads', {
       subject: threadForm.value.subject,
       participant_ids: ids,
       order_id: threadForm.value.order_id || null,

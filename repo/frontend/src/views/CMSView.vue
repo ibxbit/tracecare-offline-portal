@@ -438,7 +438,9 @@ async function handleSave() {
 async function workflowAction(page, action) {
   workflowBusy.value = true
   try {
-    await api.post(`/cms/pages/${page.id}/${action}`)
+    // Backend WorkflowTransitionRequest requires a JSON body with optional `note`.
+    // Omitting the body entirely causes FastAPI to return 422.
+    await api.post(`/cms/pages/${page.id}/${action}`, { note: null })
     const labels = {
       'submit-review': 'Submitted for review.',
       approve: 'Page approved and published.',
@@ -463,8 +465,9 @@ function openReject(page) {
 async function handleReject() {
   workflowBusy.value = true
   try {
+    // Backend WorkflowTransitionRequest uses `note`, not `reason`.
     await api.post(`/cms/pages/${rejectTarget.value.id}/reject`, {
-      reason: rejectReason.value || null,
+      note: rejectReason.value || null,
     })
     showReject.value = false
     showToast('Page rejected — returned to draft.')
@@ -494,7 +497,8 @@ async function rollback(page, revisionNumber) {
   if (!confirm(`Roll back "${page.title}" to revision r${revisionNumber}? Current content will be overwritten.`)) return
   rollbackBusy.value = revisionNumber
   try {
-    await api.post(`/cms/pages/${page.id}/rollback/${revisionNumber}`)
+    // Backend rollback endpoint also expects WorkflowTransitionRequest body.
+    await api.post(`/cms/pages/${page.id}/rollback/${revisionNumber}`, { note: null })
     showToast(`Rolled back to r${revisionNumber}.`)
     showRevisions.value = false
     await fetchPages()

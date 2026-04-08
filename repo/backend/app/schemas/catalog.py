@@ -58,6 +58,15 @@ class CatalogItemCreate(BaseModel):
         default=None, description="Days of shelf life from harvest date"
     )
 
+    # Tagging and priority
+    tags: str | None = Field(
+        default=None, max_length=500,
+        description="Comma-separated keyword tags, e.g. 'organic,premium,export'",
+    )
+    priority: Annotated[int, Field(ge=1, le=5)] | None = Field(
+        default=None, description="Priority 1 (low) to 5 (critical)"
+    )
+
     @field_validator("specifications")
     @classmethod
     def validate_specifications_json(cls, v: str | None) -> str | None:
@@ -87,6 +96,8 @@ class CatalogItemUpdate(BaseModel):
     packaging_info: str | None = Field(default=None, max_length=500)
     shelf_life_days: Annotated[int, Field(gt=0)] | None = None
     is_active: bool | None = None
+    tags: str | None = Field(default=None, max_length=500)
+    priority: Annotated[int, Field(ge=1, le=5)] | None = None
 
     @field_validator("specifications")
     @classmethod
@@ -135,6 +146,8 @@ class CatalogItemResponse(BaseModel):
     shelf_life_days: int | None
 
     is_active: bool
+    tags: str | None
+    priority: int | None
     created_by: int
     created_at: datetime
     updated_at: datetime
@@ -156,6 +169,8 @@ class CatalogItemBrief(BaseModel):
     harvest_batch: str | None
     shelf_life_days: int | None
     is_active: bool
+    tags: str | None
+    priority: int | None
     created_at: datetime
     updated_at: datetime
     attachment_count: int = 0

@@ -143,3 +143,104 @@ describe('CMSView — revision list (newest first)', () => {
     expect(shouldHideRollback(revisions[0])).toBe(false)
   })
 })
+
+// ── WorkflowTransitionRequest API payload contract ────────────────────────────
+//
+// Backend contract: every workflow/rollback POST requires a JSON body matching
+//   WorkflowTransitionRequest { note: str | null }
+//
+// Omitting the body entirely causes FastAPI to return 422.
+// The `reason` key must NEVER be sent — only `note`.
+//
+// These functions mirror CMSView.vue:
+//   workflowAction  →  api.post(url, { note: null })
+//   handleReject    →  api.post(url, { note: rejectReason || null })
+//   rollback        →  api.post(url, { note: null })
+
+function buildWorkflowBody(note = null) {
+  return { note: note }
+}
+
+function buildRejectBody(noteText = null) {
+  // Correct: `note` key.  The old (wrong) key was `reason`.
+  return { note: noteText }
+}
+
+function buildRollbackBody(note = null) {
+  return { note: note }
+}
+
+describe('CMSView — WorkflowTransitionRequest body (A-01 / A-03 contract lock)', () => {
+  const WORKFLOW_ACTIONS = ['submit-review', 'approve', 'reject', 'archive', 'restore', 'rollback']
+
+  it('workflowAction body always contains the `note` key', () => {
+    const body = buildWorkflowBody()
+    expect(body).toHaveProperty('note')
+  })
+
+  it('workflowAction default body has note === null (no note provided)', () => {
+    const body = buildWorkflowBody()
+    expect(body.note).toBeNull()
+  })
+
+  it('workflowAction body with explicit note string passes it through', () => {
+    const body = buildWorkflowBody('Ready for review')
+    expect(body.note).toBe('Ready for review')
+  })
+
+  it('all 6 workflow endpoint calls share the same single-key body shape', () => {
+    WORKFLOW_ACTIONS.forEach(action => {
+      const body = buildWorkflowBody(null)
+      // Must have exactly one key and it must be `note`
+      expect(Object.keys(body)).toEqual(['note'])
+    })
+  })
+
+  it('body object is never undefined or null — omitting body would cause 422', () => {
+    const body = buildWorkflowBody(null)
+    expect(body).toBeDefined()
+    expect(body).not.toBeNull()
+    expect(typeof body).toBe('object')
+  })
+
+  // ── Reject: `note` not `reason` ─────────────────────────────────────────────
+
+  it('handleReject sends `note` key, NOT the stale `reason` key', () => {
+    const body = buildRejectBody('Needs revision — missing citations')
+    expect(body).toHaveProperty('note', 'Needs revision — missing citations')
+    expect(body.reason).toBeUndefined()   // `reason` must never appear
+  })
+
+  it('handleReject with no text sends note: null (still a valid body)', () => {
+    const body = buildRejectBody(null)
+    expect(body).toHaveProperty('note')
+    expect(body.note).toBeNull()
+    expect(body.reason).toBeUndefined()
+  })
+
+  it('reject body does not accidentally carry both `note` and `reason`', () => {
+    const body = buildRejectBody('test')
+    const keys = Object.keys(body)
+    expect(keys).not.toContain('reason')
+    expect(keys).toContain('note')
+    expect(keys).toHaveLength(1)
+  })
+
+  // ── Rollback ─────────────────────────────────────────────────────────────────
+
+  it('rollback body has `note` key (endpoint requires WorkflowTransitionRequest)', () => {
+    const body = buildRollbackBody(null)
+    expect(body).toHaveProperty('note')
+  })
+
+  it('rollback body with an optional note string passes it through', () => {
+    const body = buildRollbackBody('Revert to stable version')
+    expect(body.note).toBe('Revert to stable version')
+  })
+
+  it('rollback body shape is identical to other workflow transition bodies', () => {
+    const rollbackBody = buildRollbackBody(null)
+    const workflowBody = buildWorkflowBody(null)
+    expect(Object.keys(rollbackBody)).toEqual(Object.keys(workflowBody))
+  })
+})

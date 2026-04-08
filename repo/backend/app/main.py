@@ -9,9 +9,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
 from app.core.log_filter import configure_secure_logging
 from app.core.security_middleware import OfflineSecurityMiddleware
 from app.routers import (
@@ -85,11 +83,8 @@ def health_check():
     return {"status": "ok", "service": "TraceCare Compliance Portal"}
 
 
-# ---------------------------------------------------------------------------
-# Static files (uploaded attachments — local filesystem, auth on /catalog/...)
-# ---------------------------------------------------------------------------
-app.mount(
-    "/uploads",
-    StaticFiles(directory=str(settings.attachments_path.parent)),
-    name="uploads",
-)
+# NOTE: No public static file mount for uploads.
+# All file access must go through authenticated API endpoints:
+#   GET /api/catalog/{item_id}/attachments/{att_id}/download  (catalog files)
+#   GET /api/reviews/{review_id}/images/{image_id}            (review images)
+# This ensures every download is auth-checked and audit-logged.

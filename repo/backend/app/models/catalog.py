@@ -49,6 +49,12 @@ class CatalogItem(Base):
     packaging_info: Mapped[str | None] = mapped_column(String(500), nullable=True)  # "10 kg sack", "crate of 24"
     shelf_life_days: Mapped[int | None] = mapped_column(Integer, nullable=True)      # days from harvest
 
+    # Tagging and priority
+    tags: Mapped[str | None] = mapped_column(Text, nullable=True,
+                                              doc="Comma-separated keyword tags, e.g. 'organic,premium,export'")
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True,
+                                                  doc="Priority 1 (low) – 5 (critical); NULL means unset")
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -76,6 +82,10 @@ class CatalogItem(Base):
         CheckConstraint(
             "shelf_life_days IS NULL OR shelf_life_days > 0",
             name="ck_catalog_items_shelf_life_positive",
+        ),
+        CheckConstraint(
+            "priority IS NULL OR (priority >= 1 AND priority <= 5)",
+            name="ck_catalog_items_priority_range",
         ),
     )
 

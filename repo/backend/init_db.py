@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.database import SessionLocal
 from app.models.user import User, UserRole
 from app.core.security import hash_password
+from app.core.encrypted_type import email_hash as _email_hash
 from sqlalchemy import select
 
 
@@ -40,9 +41,11 @@ def create_default_admin():
         if existing:
             print("Default admin user already exists. Skipping creation.")
             return
+        admin_email = "admin@tracecare.local"
         admin = User(
             username="admin",
-            email="admin@tracecare.local",
+            email=admin_email,
+            email_hash=_email_hash(admin_email),
             hashed_password=hash_password("Admin@123!"),
             role=UserRole.admin,
             is_active=True,

@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.core.security import hash_password, verify_password
 from app.core.dependencies import get_current_user, require_role
+from app.core.encrypted_type import email_hash as _email_hash
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 
@@ -22,9 +23,10 @@ def create_user(
     db: Session = Depends(get_db),
     _: User = Depends(require_role("admin")),
 ):
+    h = _email_hash(payload.email)
     existing = db.execute(
         select(User).where(
-            (User.username == payload.username) | (User.email == payload.email)
+            (User.username == payload.username) | (User.email_hash == h)
         )
     ).scalar_one_or_none()
     if existing:
@@ -35,6 +37,7 @@ def create_user(
     user = User(
         username=payload.username,
         email=payload.email,
+        email_hash=h,
         hashed_password=hash_password(payload.password),
         role=payload.role,
     )
@@ -80,6 +83,7 @@ def update_me(
 ):
     if payload.email is not None:
         current_user.email = payload.email
+        current_user.email_hash = _email_hash(payload.email)
     if payload.password is not None:
         current_user.hashed_password = hash_password(payload.password)
     # Non-admin cannot change their own role or active status
@@ -100,6 +104,7 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if payload.email is not None:
         user.email = payload.email
+        user.email_hash = _email_hash(payload.email)
     if payload.password is not None:
         user.hashed_password = hash_password(payload.password)
     if payload.role is not None:

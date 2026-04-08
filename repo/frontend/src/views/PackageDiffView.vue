@@ -54,8 +54,8 @@
             <tbody class="divide-y divide-slate-100">
               <tr v-for="change in diff.metadata_changes" :key="change.field" class="hover:bg-slate-50">
                 <td class="px-4 py-2.5 font-medium text-slate-700 capitalize">{{ change.field.replace(/_/g, ' ') }}</td>
-                <td class="px-4 py-2.5 text-red-600 line-through">{{ formatValue(change.field, change.before) }}</td>
-                <td class="px-4 py-2.5 text-green-700 font-medium">{{ formatValue(change.field, change.after) }}</td>
+                <td class="px-4 py-2.5 text-red-600 line-through">{{ formatValue(change.field, change.from_value) }}</td>
+                <td class="px-4 py-2.5 text-green-700 font-medium">{{ formatValue(change.field, change.to_value) }}</td>
               </tr>
             </tbody>
           </table>
@@ -96,11 +96,11 @@
             class="bg-white rounded-xl border border-amber-200 p-4">
             <p class="font-semibold text-slate-800 mb-2">{{ c.code }} — {{ c.name }}</p>
             <div class="space-y-1 text-sm">
-              <div v-for="field in c.changed_fields" :key="field.field" class="flex gap-4">
-                <span class="text-slate-500 w-28 shrink-0 capitalize">{{ field.field.replace(/_/g, ' ') }}</span>
-                <span class="text-red-500 line-through">{{ field.before }}</span>
+              <div v-for="[fieldName, delta] in Object.entries(c.changes || {})" :key="fieldName" class="flex gap-4">
+                <span class="text-slate-500 w-28 shrink-0 capitalize">{{ fieldName.replace(/_/g, ' ') }}</span>
+                <span class="text-red-500 line-through">{{ delta.from }}</span>
                 <span class="text-slate-400">→</span>
-                <span class="text-green-700 font-medium">{{ field.after }}</span>
+                <span class="text-green-700 font-medium">{{ delta.to }}</span>
               </div>
             </div>
           </div>

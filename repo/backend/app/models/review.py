@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
-    String, Text, DateTime, ForeignKey, Integer, Boolean,
+    String, Text, DateTime, ForeignKey, Integer, Boolean, Numeric,
     Enum as SAEnum, CheckConstraint, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship

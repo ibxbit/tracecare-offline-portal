@@ -10,6 +10,39 @@
       </RoleGuard>
     </div>
 
+    <!-- Search & Filters -->
+    <div class="flex flex-wrap gap-3 mb-5">
+      <input v-model="filters.search" @input="debouncedFetch" type="text"
+        class="input max-w-xs" placeholder="Search name, description, category…" />
+      <select v-model="filters.active_only" @change="fetchItems" class="input w-36">
+        <option :value="true">Active only</option>
+        <option :value="false">All (incl. inactive)</option>
+      </select>
+      <input v-model.number="filters.price_min" @change="fetchItems" type="number" min="0" step="0.01"
+        class="input w-28" placeholder="Min price" />
+      <input v-model.number="filters.price_max" @change="fetchItems" type="number" min="0" step="0.01"
+        class="input w-28" placeholder="Max price" />
+      <input v-model="filters.harvest_date_from" @change="fetchItems" type="date"
+        class="input w-40" title="Harvest date from" />
+      <input v-model="filters.harvest_date_to" @change="fetchItems" type="date"
+        class="input w-40" title="Harvest date to" />
+      <label class="flex items-center gap-2 text-sm text-slate-600">
+        <input v-model="filters.in_stock" @change="fetchItems" type="checkbox" class="rounded" />
+        In-stock only
+      </label>
+      <input v-model="filters.tags" @input="debouncedFetch" type="text"
+        class="input w-44" placeholder="Tags (e.g. organic,premium)" title="Comma-separated tags — matches any" />
+      <select v-model.number="filters.priority_min" @change="fetchItems" class="input w-36"
+        title="Minimum priority level">
+        <option :value="null">Any priority</option>
+        <option :value="1">≥ Low (1)</option>
+        <option :value="2">≥ Medium (2)</option>
+        <option :value="3">≥ High (3)</option>
+        <option :value="4">≥ Urgent (4)</option>
+        <option :value="5">Critical (5)</option>
+      </select>
+    </div>
+
     <DataTable
       :columns="columns"
       :rows="items"
@@ -113,7 +146,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import api from '../api/index.js'
 import DataTable from '../components/DataTable.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -134,6 +167,21 @@ const editingItem = ref(null)
 const selectedItem = ref(null)
 const stockAdjust = ref(0)
 
+const filters = reactive({
+  search: '',
+  active_only: true,
+  price_min: null,
+  price_max: null,
+  harvest_date_from: '',
+  harvest_date_to: '',
+  in_stock: false,
+  tags: '',
+  priority_min: null,
+})
+
+let debounceTimer = null
+function debouncedFetch() { clearTimeout(debounceTimer); debounceTimer = setTimeout(fetchItems, 300) }
+
 const form = ref({
   name: '', description: '', category: '', price: '0', stock_quantity: 0, is_active: true,
 })
@@ -150,7 +198,15 @@ const columns = [
 async function fetchItems() {
   loading.value = true
   try {
-    const res = await api.get('/catalog')
+    const params = { active_only: filters.active_only, in_stock: filters.in_stock }
+    if (filters.search) params.search = filters.search
+    if (filters.price_min !== null && filters.price_min !== '') params.price_min = filters.price_min
+    if (filters.price_max !== null && filters.price_max !== '') params.price_max = filters.price_max
+    if (filters.harvest_date_from) params.harvest_date_from = filters.harvest_date_from
+    if (filters.harvest_date_to) params.harvest_date_to = filters.harvest_date_to
+    if (filters.tags) params.tags = filters.tags
+    if (filters.priority_min !== null) params.priority_min = filters.priority_min
+    const res = await api.get('/catalog', { params })
     items.value = res.data
   } finally {
     loading.value = false

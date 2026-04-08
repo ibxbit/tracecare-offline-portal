@@ -13,7 +13,7 @@ export const useNotificationStore = defineStore('notifications', () => {
   async function fetchUnreadCount() {
     try {
       const res = await api.get('/notifications/unread-count')
-      unreadCount.value = res.data.count ?? 0
+      unreadCount.value = res.data.unread_count ?? 0
     } catch { /* offline */ }
   }
 

@@ -14,9 +14,9 @@
         class="input max-w-xs" placeholder="Search reviews..." />
       <select v-model="filters.subject_type" @change="fetchReviews" class="input w-40">
         <option value="">All types</option>
-        <option value="catalog_item">Catalog</option>
-        <option value="exam_package">Package</option>
-        <option value="service">Service</option>
+        <option value="product">Product</option>
+        <option value="exam_type">Exam Type</option>
+        <option value="catalog_item">Catalog Item</option>
       </select>
       <select v-model="filters.min_rating" @change="fetchReviews" class="input w-32">
         <option value="">All ratings</option>
@@ -179,16 +179,24 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Subject Type *</label>
-            <select v-model="createForm.subject_type" class="input" required>
+            <select v-model="createForm.subject_type" @change="createForm.subject_id = null; createForm.subject_text = ''"
+              class="input" required>
               <option value="">Select…</option>
+              <option value="product">Product</option>
+              <option value="exam_type">Exam Type</option>
               <option value="catalog_item">Catalog Item</option>
-              <option value="exam_package">Exam Package</option>
-              <option value="service">Service</option>
             </select>
           </div>
-          <div>
+          <!-- exam_type uses a text label (subject_text); other types use a numeric ID (subject_id) -->
+          <div v-if="createForm.subject_type === 'exam_type'">
+            <label class="label">Exam Type Name *</label>
+            <input v-model="createForm.subject_text" type="text" class="input" required
+              placeholder="e.g. CBC, Urinalysis, X-Ray" />
+          </div>
+          <div v-else>
             <label class="label">Subject ID *</label>
-            <input v-model.number="createForm.subject_id" type="number" class="input" required placeholder="Item ID" />
+            <input v-model.number="createForm.subject_id" type="number" class="input"
+              :required="!!createForm.subject_type" placeholder="Item ID" />
           </div>
         </div>
         <div>
@@ -216,8 +224,8 @@
           <input v-model="tagsInput" type="text" class="input" placeholder="quality, fast-delivery, organic" />
         </div>
         <div>
-          <label class="label">Images (max 6, JPG/PNG/WebP)</label>
-          <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple
+          <label class="label">Images (max 6, JPG/PNG only)</label>
+          <input ref="imageInput" type="file" accept="image/jpeg,image/png" multiple
             @change="handleImageSelect" class="block w-full text-sm text-slate-500
               file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
               file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700" />
@@ -361,7 +369,7 @@ const filters = reactive({
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const createForm = ref({ subject_type: '', subject_id: null, order_id: null, rating: 0, comment: '' })
+const createForm = ref({ subject_type: '', subject_id: null, subject_text: '', order_id: null, rating: 0, comment: '' })
 const tagsInput = ref('')
 const selectedImages = ref([])
 const imageInput = ref(null)
@@ -397,7 +405,7 @@ async function fetchReviews() {
     const params = { skip: filters.skip, limit: filters.limit, sort_by: filters.sort_by }
     if (filters.search) params.search = filters.search
     if (filters.subject_type) params.subject_type = filters.subject_type
-    if (filters.min_rating) params.min_rating = filters.min_rating
+    if (filters.min_rating) params.rating_min = filters.min_rating  // backend param is rating_min
     if (filters.verified_only) params.verified_only = true
     const res = await api.get('/reviews', { params })
     reviews.value = res.data.map(r => ({ ...r, _expand: false }))
@@ -418,7 +426,7 @@ function prevPage() { if (filters.skip > 0) { filters.skip = Math.max(0, filters
 function nextPage() { filters.skip += filters.limit; fetchReviews() }
 
 function openCreate() {
-  createForm.value = { subject_type: '', subject_id: null, order_id: null, rating: 0, comment: '' }
+  createForm.value = { subject_type: '', subject_id: null, subject_text: '', order_id: null, rating: 0, comment: '' }
   tagsInput.value = ''
   selectedImages.value = []
   createError.value = ''
@@ -439,7 +447,7 @@ watch(() => createForm.value.order_id, (newId) => {
 
 function handleImageSelect(e) {
   const files = Array.from(e.target.files)
-  const allowed = ['image/jpeg', 'image/png', 'image/webp']
+  const allowed = ['image/jpeg', 'image/png']
   const valid = files.filter(f => allowed.includes(f.type))
   if (selectedImages.value.length + valid.length > 6) {
     alert('Maximum 6 images allowed')
@@ -456,6 +464,19 @@ function removeImage(i) { selectedImages.value.splice(i, 1) }
 
 async function handleCreate() {
   createError.value = ''
+  if (!createForm.value.subject_type) { createError.value = 'Please select a subject type.'; return }
+  // exam_type requires subject_text; all other types require subject_id
+  if (createForm.value.subject_type === 'exam_type') {
+    if (!createForm.value.subject_text?.trim()) {
+      createError.value = 'Exam type name is required for exam type reviews.'
+      return
+    }
+  } else {
+    if (!createForm.value.subject_id) {
+      createError.value = 'Subject ID is required.'
+      return
+    }
+  }
   if (!createForm.value.rating) { createError.value = 'Please select a rating.'; return }
   if (createForm.value.comment.length < 1) { createError.value = 'Comment is required.'; return }
 
@@ -469,14 +490,20 @@ async function handleCreate() {
   creating.value = true
   try {
     const tags = tagsInput.value ? tagsInput.value.split(',').map(t => t.trim()).filter(Boolean) : []
-    const res = await api.post('/reviews', {
+    // Build payload: exam_type sends subject_text; other types send subject_id
+    const payload = {
       subject_type: createForm.value.subject_type,
-      subject_id: createForm.value.subject_id,
       order_id: orderId || null,
       rating: createForm.value.rating,
       comment: createForm.value.comment,
       tags: tags.length ? JSON.stringify(tags) : null,
-    })
+    }
+    if (createForm.value.subject_type === 'exam_type') {
+      payload.subject_text = createForm.value.subject_text.trim()
+    } else {
+      payload.subject_id = createForm.value.subject_id
+    }
+    const res = await api.post('/reviews', payload)
     // Record cooldown for this order immediately after a successful submission
     if (orderId) _recordCooldown(orderId)
 

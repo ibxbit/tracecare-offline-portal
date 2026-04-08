@@ -101,17 +101,19 @@ class TestPackageVersioning:
     def test_new_version_increments_version_number(
         self, client: httpx.Client, admin_headers: dict
     ):
-        pkg = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        item_id = _get_or_create_exam_item(client, admin_headers)
+        pkg = client.post("/api/packages", json=_pkg_payload(
+            items=[{"exam_item_id": item_id, "is_required": True}]
+        ), headers=admin_headers).json()
         name = pkg["name"]
         pkg_id = pkg["id"]
 
-        resp = client.post(f"/api/packages/{pkg_id}/versions", json={
+        resp = client.post(f"/api/packages/{pkg_id}/new-version", json={
             "description": "Updated description",
             "price": "109.99",
-            "validity_days": 60,
-            "change_note": "Price update",
+            "validity_window_days": 60,
         }, headers=admin_headers)
-        assert resp.status_code == 201
+        assert resp.status_code == 201, f"new-version failed: {resp.text}"
         new_pkg = resp.json()
         assert new_pkg["version"] == 2
         assert new_pkg["name"] == name
@@ -132,27 +134,45 @@ class TestPackageVersioning:
 
 class TestPackageDiff:
     def test_diff_between_versions(self, client: httpx.Client, admin_headers: dict):
-        pkg_v1 = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        item_id = _get_or_create_exam_item(client, admin_headers)
+        pkg_v1 = client.post("/api/packages", json=_pkg_payload(
+            items=[{"exam_item_id": item_id, "is_required": True}]
+        ), headers=admin_headers).json()
         pkg_id = pkg_v1["id"]
 
-        pkg_v2 = client.post(f"/api/packages/{pkg_id}/versions", json={
+        pkg_v2 = client.post(f"/api/packages/{pkg_id}/new-version", json={
             "description": "New description",
             "price": "199.99",
-            "validity_days": 90,
-            "change_note": "Major update",
+            "validity_window_days": 90,
         }, headers=admin_headers).json()
 
+        # Diff endpoint: GET /packages/{base_id}/diff/{other_id}
         resp = client.get(
-            f"/api/packages/{pkg_v2['id']}/diff",
-            params={"base_id": pkg_id},
+            f"/api/packages/{pkg_id}/diff/{pkg_v2['id']}",
             headers=admin_headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 200, f"diff failed: {resp.text}"
         diff = resp.json()
-        assert "metadata_changes" in diff or "base" in diff or isinstance(diff, dict)
+        assert "metadata_changes" in diff
+        assert "items_added" in diff
+        assert "items_removed" in diff
+        assert "items_changed" in diff
+        # Verify metadata_changes use from_value/to_value (not before/after)
+        for change in diff.get("metadata_changes", []):
+            assert "from_value" in change, "metadata change must use 'from_value'"
+            assert "to_value" in change, "metadata change must use 'to_value'"
 
         client.delete(f"/api/packages/{pkg_id}", headers=admin_headers)
         client.delete(f"/api/packages/{pkg_v2['id']}", headers=admin_headers)
+
+    def test_diff_same_package_returns_422(self, client: httpx.Client, admin_headers: dict):
+        item_id = _get_or_create_exam_item(client, admin_headers)
+        pkg = client.post("/api/packages", json=_pkg_payload(
+            items=[{"exam_item_id": item_id, "is_required": True}]
+        ), headers=admin_headers).json()
+        resp = client.get(f"/api/packages/{pkg['id']}/diff/{pkg['id']}", headers=admin_headers)
+        assert resp.status_code == 422
+        client.delete(f"/api/packages/{pkg['id']}", headers=admin_headers)
 
 
 class TestPackageActivation:

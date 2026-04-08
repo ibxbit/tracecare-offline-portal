@@ -108,6 +108,8 @@ def _to_brief(item: CatalogItem, attachment_count: int) -> CatalogItemBrief:
         harvest_batch=item.harvest_batch,
         shelf_life_days=item.shelf_life_days,
         is_active=item.is_active,
+        tags=item.tags,
+        priority=item.priority,
         created_at=item.created_at,
         updated_at=item.updated_at,
         attachment_count=attachment_count,
@@ -138,6 +140,8 @@ def create_item(
         harvest_date=payload.harvest_date,
         packaging_info=payload.packaging_info,
         shelf_life_days=payload.shelf_life_days,
+        tags=payload.tags,
+        priority=payload.priority,
         is_active=True,
         created_by=current_user.id,
     )
@@ -170,6 +174,16 @@ def list_items(
     # --- date range ---
     harvest_date_from: datetime | None = Query(default=None),
     harvest_date_to: datetime | None = Query(default=None),
+
+    # --- tags and priority ---
+    tags: str | None = Query(
+        default=None, max_length=500,
+        description="Comma-separated tags; returns items whose tags column contains ANY listed tag",
+    ),
+    priority_min: int | None = Query(default=None, ge=1, le=5,
+                                      description="Minimum priority (1=low … 5=critical)"),
+    priority_max: int | None = Query(default=None, ge=1, le=5,
+                                      description="Maximum priority (1=low … 5=critical)"),
 
     # --- boolean flags ---
     active_only: bool = Query(default=True),
@@ -242,6 +256,18 @@ def list_items(
     if harvest_date_to is not None:
         q = q.where(CatalogItem.harvest_date <= harvest_date_to)
 
+    # Tags — match any comma-separated tag (case-insensitive substring per tag)
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            q = q.where(or_(*[CatalogItem.tags.ilike(f"%{t}%") for t in tag_list]))
+
+    # Priority range
+    if priority_min is not None:
+        q = q.where(CatalogItem.priority >= priority_min)
+    if priority_max is not None:
+        q = q.where(CatalogItem.priority <= priority_max)
+
     # Validate range pairs
     if price_min is not None and price_max is not None and price_min > price_max:
         raise HTTPException(status_code=422, detail="price_min must be <= price_max")
@@ -249,6 +275,8 @@ def list_items(
         raise HTTPException(status_code=422, detail="stock_min must be <= stock_max")
     if shelf_life_min is not None and shelf_life_max is not None and shelf_life_min > shelf_life_max:
         raise HTTPException(status_code=422, detail="shelf_life_min must be <= shelf_life_max")
+    if priority_min is not None and priority_max is not None and priority_min > priority_max:
+        raise HTTPException(status_code=422, detail="priority_min must be <= priority_max")
 
     # Sorting
     sort_col = getattr(CatalogItem, sort_by.value)

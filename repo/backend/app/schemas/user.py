@@ -20,10 +20,11 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    email: str
+    email: str          # decrypted by EncryptedString TypeDecorator before reaching here
     role: UserRole
     is_active: bool
     created_at: datetime
+    # email_hash is intentionally excluded — internal lookup field only
 
     model_config = {"from_attributes": True}
 

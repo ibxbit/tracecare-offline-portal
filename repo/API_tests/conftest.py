@@ -117,3 +117,25 @@ def temp_staff_tokens(client: httpx.Client, temp_staff_user: dict) -> dict:
 @pytest.fixture
 def temp_staff_headers(temp_staff_tokens: dict) -> dict:
     return {"Authorization": f"Bearer {temp_staff_tokens['access_token']}"}
+
+
+@pytest.fixture
+def temp_catalog_manager(client: httpx.Client, admin_headers: dict) -> dict:
+    user = _create_user(client, admin_headers, role="catalog_manager")
+    yield user
+    _delete_user(client, admin_headers, user["id"])
+
+
+@pytest.fixture
+def temp_catalog_manager_tokens(client: httpx.Client, temp_catalog_manager: dict) -> dict:
+    resp = client.post("/api/auth/login", json={
+        "username": temp_catalog_manager["username"],
+        "password": temp_catalog_manager["password"],
+    })
+    assert resp.status_code == 200
+    return resp.json()
+
+
+@pytest.fixture
+def temp_catalog_manager_headers(temp_catalog_manager_tokens: dict) -> dict:
+    return {"Authorization": f"Bearer {temp_catalog_manager_tokens['access_token']}"}

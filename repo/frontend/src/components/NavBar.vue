@@ -76,7 +76,7 @@ const router = useRouter()
 const allNavItems = [
   { to: '/dashboard',    label: 'Dashboard',   roles: null },
   { to: '/packages',     label: 'Packages',    roles: null },
-  { to: '/package-setup', label: 'Pkg Setup',  roles: ['admin'] },
+  { to: '/packages/setup', label: 'Pkg Setup',  roles: ['admin'] },
   { to: '/exams',        label: 'Exams',       roles: ['admin', 'clinic_staff'] },
   { to: '/catalog',      label: 'Catalog',     roles: null },
   { to: '/reviews',      label: 'Reviews',     roles: null },

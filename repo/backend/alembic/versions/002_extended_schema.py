@@ -299,7 +299,7 @@ def upgrade() -> None:
     op.add_column("cms_pages", sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True))
 
     # Drop old unique constraint on slug alone; replace with (slug, store_id, locale)
-    op.drop_constraint("cms_pages_slug_key", "cms_pages", type_="unique")
+    op.execute("ALTER TABLE cms_pages DROP CONSTRAINT IF EXISTS cms_pages_slug_key")
     op.create_unique_constraint("uq_cms_pages_slug_store_locale", "cms_pages",
                                  ["slug", "store_id", "locale"])
     op.create_check_constraint(

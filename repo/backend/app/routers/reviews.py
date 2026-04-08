@@ -78,7 +78,7 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 _MODERATORS = ("admin", "catalog_manager")
 
 # Only image MIME types are accepted for review images
-_REVIEW_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+_REVIEW_IMAGE_MIMES = {"image/jpeg", "image/png"}
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
@@ -114,6 +114,23 @@ def _assert_order_owner(order: Order, current_user: User) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only review orders that belong to you",
+        )
+
+
+def _assert_order_completed(order: Order) -> None:
+    """
+    Enforce the 'review only after completed order' rule.
+
+    Canonical rule: order.status must equal OrderStatus.completed.
+    The is_completed boolean mirrors this state but status is the authoritative field.
+    """
+    if order.status != OrderStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Reviews can only be submitted for completed orders "
+                f"(current status: {order.status.value})"
+            ),
         )
 
 
@@ -188,6 +205,7 @@ def submit_review(
     Submit an initial review for an order.
 
     Rules:
+    - The order must be in `completed` status (prompt requirement).
     - You must be the customer who placed the order.
     - Anti-spam: one submission per order per 10 minutes.
     - Each order can have multiple reviews (one per subject), but never
@@ -196,6 +214,7 @@ def submit_review(
     """
     order = _get_order_or_404(db, payload.order_id)
     _assert_order_owner(order, current_user)
+    _assert_order_completed(order)
     _check_antispam(db, current_user.id, payload.order_id)
 
     # Prevent duplicate initial reviews for the same subject on the same order
@@ -257,6 +276,7 @@ def submit_followup(
     Submit a follow-up review on an existing initial review.
 
     Rules:
+    - The underlying order must still be in `completed` status.
     - Only the original reviewer may add a follow-up.
     - One follow-up per initial review (not per order).
     - Must be submitted within 14 days of the parent review.
@@ -274,6 +294,10 @@ def submit_followup(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Cannot create a follow-up on a follow-up review",
         )
+
+    # Enforce completed-order rule for follow-ups as well
+    followup_order = _get_order_or_404(db, parent.order_id)
+    _assert_order_completed(followup_order)
 
     # Check 14-day window
     deadline = parent.created_at + timedelta(days=FOLLOWUP_WINDOW_DAYS)

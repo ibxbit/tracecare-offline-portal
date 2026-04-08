@@ -224,3 +224,144 @@ class TestCSVExports:
     def test_export_api_keys(self, client: httpx.Client, admin_headers: dict):
         resp = client.get("/api/admin/export/api-keys", headers=admin_headers)
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Proxy Pool
+# ---------------------------------------------------------------------------
+
+class TestProxyPool:
+    """
+    Admin-only CRUD + health-check for /api/admin/proxy-pool.
+    Proxy pool manages outbound connection proxies for offline relay scenarios.
+    """
+
+    def _proxy_payload(self) -> dict:
+        return {
+            "host": f"10.0.1.{uuid.uuid4().int % 254 + 1}",
+            "port": 8080,
+            "protocol": "http",
+            "label": f"proxy_{uuid.uuid4().hex[:8]}",
+            "is_active": True,
+        }
+
+    # ── Happy path ────────────────────────────────────────────────────────────
+
+    def test_admin_can_create_proxy(self, client: httpx.Client, admin_headers: dict):
+        payload = self._proxy_payload()
+        resp = client.post("/api/admin/proxy-pool", json=payload, headers=admin_headers)
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["host"] == payload["host"]
+        assert body["port"] == payload["port"]
+        assert "id" in body
+        # Cleanup
+        client.delete(f"/api/admin/proxy-pool/{body['id']}", headers=admin_headers)
+
+    def test_admin_can_list_proxies(self, client: httpx.Client, admin_headers: dict):
+        resp = client.get("/api/admin/proxy-pool", headers=admin_headers)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_admin_can_get_proxy_by_id(self, client: httpx.Client, admin_headers: dict):
+        proxy = client.post(
+            "/api/admin/proxy-pool", json=self._proxy_payload(), headers=admin_headers
+        ).json()
+        resp = client.get(f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["id"] == proxy["id"]
+        client.delete(f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers)
+
+    def test_admin_can_update_proxy(self, client: httpx.Client, admin_headers: dict):
+        proxy = client.post(
+            "/api/admin/proxy-pool", json=self._proxy_payload(), headers=admin_headers
+        ).json()
+        resp = client.put(
+            f"/api/admin/proxy-pool/{proxy['id']}",
+            json={**self._proxy_payload(), "label": "updated_label"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["label"] == "updated_label"
+        client.delete(f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers)
+
+    def test_admin_can_delete_proxy(self, client: httpx.Client, admin_headers: dict):
+        proxy = client.post(
+            "/api/admin/proxy-pool", json=self._proxy_payload(), headers=admin_headers
+        ).json()
+        resp = client.delete(
+            f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers
+        )
+        assert resp.status_code == 204
+
+    def test_health_check_returns_result(
+        self, client: httpx.Client, admin_headers: dict
+    ):
+        proxy = client.post(
+            "/api/admin/proxy-pool", json=self._proxy_payload(), headers=admin_headers
+        ).json()
+        resp = client.patch(
+            f"/api/admin/proxy-pool/{proxy['id']}/health-check",
+            headers=admin_headers,
+        )
+        # Health check may succeed or fail depending on env — either is a valid result
+        assert resp.status_code in (200, 503)
+        body = resp.json()
+        assert "reachable" in body
+        client.delete(f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers)
+
+    def test_get_nonexistent_proxy_returns_404(
+        self, client: httpx.Client, admin_headers: dict
+    ):
+        resp = client.get("/api/admin/proxy-pool/999999999", headers=admin_headers)
+        assert resp.status_code == 404
+
+    # ── Access control ────────────────────────────────────────────────────────
+
+    def test_end_user_cannot_list_proxy_pool(
+        self, client: httpx.Client, temp_end_user_headers: dict
+    ):
+        resp = client.get("/api/admin/proxy-pool", headers=temp_end_user_headers)
+        assert resp.status_code == 403
+
+    def test_staff_cannot_list_proxy_pool(
+        self, client: httpx.Client, temp_staff_headers: dict
+    ):
+        resp = client.get("/api/admin/proxy-pool", headers=temp_staff_headers)
+        assert resp.status_code == 403
+
+    def test_end_user_cannot_create_proxy(
+        self, client: httpx.Client, temp_end_user_headers: dict
+    ):
+        resp = client.post(
+            "/api/admin/proxy-pool",
+            json=self._proxy_payload(),
+            headers=temp_end_user_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_staff_cannot_delete_proxy(
+        self, client: httpx.Client, admin_headers: dict, temp_staff_headers: dict
+    ):
+        proxy = client.post(
+            "/api/admin/proxy-pool", json=self._proxy_payload(), headers=admin_headers
+        ).json()
+        resp = client.delete(
+            f"/api/admin/proxy-pool/{proxy['id']}", headers=temp_staff_headers
+        )
+        assert resp.status_code == 403
+        client.delete(f"/api/admin/proxy-pool/{proxy['id']}", headers=admin_headers)
+
+    # ── Validation ────────────────────────────────────────────────────────────
+
+    def test_invalid_port_rejected(self, client: httpx.Client, admin_headers: dict):
+        payload = self._proxy_payload()
+        payload["port"] = 99999  # out of valid range
+        resp = client.post("/api/admin/proxy-pool", json=payload, headers=admin_headers)
+        assert resp.status_code == 422
+
+    def test_missing_host_rejected(self, client: httpx.Client, admin_headers: dict):
+        resp = client.post("/api/admin/proxy-pool", json={
+            "port": 8080, "protocol": "http", "label": "no_host"
+        }, headers=admin_headers)
+        assert resp.status_code == 422

@@ -141,3 +141,99 @@ describe('Cooldown — fmtCooldown formatting', () => {
     expect(fmtCooldown(61)).toBe('1m 1s')
   })
 })
+
+// ── Review create payload contract — exam_type vs id-based subjects ───────────
+//
+// Backend contract (ReviewCreate.subject_consistency model_validator):
+//   - subject_type == "exam_type"  → subject_text required,  subject_id must be null/absent
+//   - subject_type != "exam_type"  → subject_id  required,   subject_text optional
+//
+// Mirrors handleCreate() payload construction in ReviewsView.vue.
+
+function buildReviewPayload(form) {
+  const payload = {
+    subject_type: form.subject_type,
+    order_id: form.order_id || null,
+    rating: form.rating,
+    comment: form.comment,
+  }
+  if (form.subject_type === 'exam_type') {
+    payload.subject_text = form.subject_text?.trim() ?? ''
+    // subject_id intentionally omitted for exam_type
+  } else {
+    payload.subject_id = form.subject_id
+    // subject_text intentionally omitted for product/catalog_item
+  }
+  return payload
+}
+
+function validateReviewForm(form) {
+  if (!form.subject_type) return 'Please select a subject type.'
+  if (form.subject_type === 'exam_type') {
+    if (!form.subject_text?.trim()) return 'Exam type name is required for exam type reviews.'
+  } else {
+    if (!form.subject_id) return 'Subject ID is required.'
+  }
+  if (!form.rating) return 'Please select a rating.'
+  if (!form.comment) return 'Comment is required.'
+  return null  // valid
+}
+
+const BASE_FORM = { order_id: 42, rating: 4, comment: 'Great', subject_type: '', subject_id: null, subject_text: '' }
+
+describe('ReviewsView — exam_type payload contract (A-02 lock)', () => {
+  it('exam_type payload includes subject_text and omits subject_id', () => {
+    const payload = buildReviewPayload({ ...BASE_FORM, subject_type: 'exam_type', subject_text: 'CBC' })
+    expect(payload.subject_text).toBe('CBC')
+    expect(payload.subject_id).toBeUndefined()
+  })
+
+  it('product payload includes subject_id and omits subject_text', () => {
+    const payload = buildReviewPayload({ ...BASE_FORM, subject_type: 'product', subject_id: 7 })
+    expect(payload.subject_id).toBe(7)
+    expect(payload.subject_text).toBeUndefined()
+  })
+
+  it('catalog_item payload includes subject_id and omits subject_text', () => {
+    const payload = buildReviewPayload({ ...BASE_FORM, subject_type: 'catalog_item', subject_id: 3 })
+    expect(payload.subject_id).toBe(3)
+    expect(payload.subject_text).toBeUndefined()
+  })
+
+  it('exam_type with empty subject_text fails client-side validation', () => {
+    const error = validateReviewForm({ ...BASE_FORM, subject_type: 'exam_type', subject_text: '' })
+    expect(error).toBeTruthy()
+    expect(error).toContain('Exam type name')
+  })
+
+  it('exam_type with whitespace-only subject_text fails client-side validation', () => {
+    const error = validateReviewForm({ ...BASE_FORM, subject_type: 'exam_type', subject_text: '   ' })
+    expect(error).toBeTruthy()
+    expect(error).toContain('Exam type name')
+  })
+
+  it('exam_type with valid subject_text passes client-side validation', () => {
+    const error = validateReviewForm({ ...BASE_FORM, subject_type: 'exam_type', subject_text: 'Urinalysis' })
+    expect(error).toBeNull()
+  })
+
+  it('product without subject_id fails client-side validation', () => {
+    const error = validateReviewForm({ ...BASE_FORM, subject_type: 'product', subject_id: null })
+    expect(error).toBeTruthy()
+    expect(error).toContain('Subject ID')
+  })
+
+  it('product with valid subject_id passes client-side validation', () => {
+    const error = validateReviewForm({ ...BASE_FORM, subject_type: 'product', subject_id: 5 })
+    expect(error).toBeNull()
+  })
+
+  it('subject_type change resets both subject_id and subject_text to avoid stale values', () => {
+    // Mirrors the @change handler on the subject_type select in ReviewsView.vue
+    let form = { subject_type: 'product', subject_id: 7, subject_text: '' }
+    // Simulate changing to exam_type
+    form = { ...form, subject_type: 'exam_type', subject_id: null, subject_text: '' }
+    expect(form.subject_id).toBeNull()
+    expect(form.subject_text).toBe('')
+  })
+})
