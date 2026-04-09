@@ -41,7 +41,7 @@ def audit(
         event_type=event_type,
         user_id=user_id,
         username=username,
-        ip=ip,
+        ip_address=ip,
         resource_type=resource_type,
         resource_id=str(resource_id) if resource_id is not None else None,
         detail=detail,

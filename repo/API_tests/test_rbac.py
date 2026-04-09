@@ -393,7 +393,7 @@ class TestMalformedTokenEdgeCases:
         assert resp.status_code == 401
 
     def test_empty_bearer_token(self, client: httpx.Client):
-        resp = client.get("/api/users/me", headers={"Authorization": "Bearer "})
+        resp = client.get("/api/users/me", headers={"Authorization": "Bearer"})
         assert resp.status_code == 401
 
     def test_completely_random_token(self, client: httpx.Client):
