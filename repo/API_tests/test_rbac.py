@@ -344,7 +344,7 @@ class TestPrivilegeEscalation:
         self, client: httpx.Client, temp_end_user: dict, temp_end_user_headers: dict
     ):
         """PATCH /users/{id} with role=admin must be blocked for end_user."""
-        resp = client.patch(
+        resp = client.put(
             f"/api/users/{temp_end_user['id']}",
             json={"role": "admin"},
             headers=temp_end_user_headers,

@@ -479,7 +479,7 @@ def list_threads(
             my_unread_count=unread_map.get(t.id, 0),
             created_at=t.created_at,
         ))
-    return briefs
+    return [b.model_dump() for b in briefs]
 
 
 @router.get("/threads/{thread_id}", response_model=ThreadResponse)

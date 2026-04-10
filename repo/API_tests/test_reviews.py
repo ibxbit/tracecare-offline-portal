@@ -77,7 +77,11 @@ class TestReviewModeration:
     def test_pin_nonexistent_review_returns_404(
         self, client: httpx.Client, admin_headers: dict
     ):
-        resp = client.patch("/api/reviews/999999999/pin", headers=admin_headers)
+        resp = client.patch(
+            "/api/reviews/999999999/pin",
+            json={},
+            headers=admin_headers
+        )
         assert resp.status_code == 404
 
     def test_collapse_nonexistent_review_returns_404(
