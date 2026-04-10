@@ -66,8 +66,8 @@ def upgrade() -> None:
             value_type  valuetype NOT NULL DEFAULT 'string',
             description TEXT,
             is_active   BOOLEAN NOT NULL DEFAULT TRUE,
-            created_by  INTEGER NOT NULL REFERENCES users(id),
-            updated_by  INTEGER REFERENCES users(id),
+            created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            updated_by  INTEGER REFERENCES users(id) ON DELETE CASCADE,
             created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         )
@@ -84,7 +84,7 @@ def upgrade() -> None:
             value_type  valuetype NOT NULL DEFAULT 'string',
             description TEXT,
             is_readonly BOOLEAN NOT NULL DEFAULT FALSE,
-            updated_by  INTEGER REFERENCES users(id),
+            updated_by  INTEGER REFERENCES users(id) ON DELETE CASCADE,
             created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         )
@@ -115,8 +115,8 @@ def upgrade() -> None:
             payload_json    TEXT,
             result_json     TEXT,
             error_message   TEXT,
-            created_by      INTEGER REFERENCES users(id),
-            assigned_to     INTEGER REFERENCES users(id),
+            created_by      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            assigned_to     INTEGER REFERENCES users(id) ON DELETE CASCADE,
             external_system VARCHAR(100),
             external_ref    VARCHAR(200),
             scheduled_at    TIMESTAMP WITH TIME ZONE,
@@ -148,7 +148,7 @@ def upgrade() -> None:
             region             VARCHAR(100),
             last_checked_at    TIMESTAMP WITH TIME ZONE,
             is_healthy         BOOLEAN,
-            created_by         INTEGER NOT NULL REFERENCES users(id),
+            created_by         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             CONSTRAINT ck_proxy_pool_port_range   CHECK (port   >= 1 AND port   <= 65535),
@@ -168,7 +168,7 @@ def upgrade() -> None:
             rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
             allowed_ips           TEXT,
             is_active             BOOLEAN NOT NULL DEFAULT TRUE,
-            created_by            INTEGER NOT NULL REFERENCES users(id),
+            created_by            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             last_used_at          TIMESTAMP WITH TIME ZONE,
             usage_count           INTEGER NOT NULL DEFAULT 0,
             created_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

@@ -46,7 +46,7 @@ class Thread(Base):
     order_id: Mapped[int | None] = mapped_column(
         ForeignKey("orders.id"), nullable=True, index=True
     )
-    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     # When True all senders appear as their virtual_contact_id alias
     use_virtual_ids: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -93,7 +93,7 @@ class ThreadParticipant(Base):
     thread_id: Mapped[int] = mapped_column(
         ForeignKey("threads.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Masked alias for virtual-relay threads (e.g. "USR-A3F9")
     virtual_contact_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -134,7 +134,7 @@ class ThreadMessage(Base):
     thread_id: Mapped[int] = mapped_column(
         ForeignKey("threads.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     body_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     is_system_message: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -162,7 +162,7 @@ class UserNotificationPreference(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), nullable=False, unique=True, index=True
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
 
     # Order-status events

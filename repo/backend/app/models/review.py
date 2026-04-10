@@ -57,7 +57,7 @@ class Review(Base):
         ForeignKey("orders.id"), nullable=False, index=True
     )
     reviewer_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # What is being reviewed
@@ -98,7 +98,7 @@ class Review(Base):
     is_collapsed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     store_id: Mapped[str] = mapped_column(String(100), nullable=False, default="default", index=True)
     moderation_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    moderated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    moderated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

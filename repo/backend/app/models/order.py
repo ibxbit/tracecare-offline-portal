@@ -32,7 +32,7 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     order_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     order_type: Mapped[OrderType] = mapped_column(SAEnum(OrderType), nullable=False)
     status: Mapped[OrderStatus] = mapped_column(
         SAEnum(OrderStatus), nullable=False, default=OrderStatus.pending

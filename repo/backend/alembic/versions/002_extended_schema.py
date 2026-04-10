@@ -53,7 +53,7 @@ def upgrade() -> None:
         sa.Column("collection_method", sa.String(255), nullable=True),
         sa.Column("preparation_instructions", sa.Text, nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.CheckConstraint(
@@ -77,7 +77,7 @@ def upgrade() -> None:
         sa.Column("version", sa.Integer, nullable=False, server_default="1"),
         sa.Column("price", sa.Numeric(10, 2), nullable=False, server_default="0"),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint("name", "version", name="uq_packages_name_version"),
     )
@@ -134,7 +134,7 @@ def upgrade() -> None:
         sa.Column("mime_type", sa.String(100), nullable=False),
         sa.Column("file_size", sa.Integer, nullable=False),
         sa.Column("sha256_fingerprint", sa.String(64), nullable=False),
-        sa.Column("uploaded_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("uploaded_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.CheckConstraint("file_size <= 5242880", name="ck_catalog_attachments_size_limit"),
         sa.CheckConstraint("file_size > 0", name="ck_catalog_attachments_size_positive"),
@@ -147,7 +147,7 @@ def upgrade() -> None:
         "orders",
         sa.Column("id", sa.Integer, primary_key=True, index=True),
         sa.Column("order_number", sa.String(50), unique=True, nullable=False, index=True),
-        sa.Column("customer_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("customer_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column(
             "order_type",
             sa.Enum("exam", "product", name="ordertype"),
@@ -230,7 +230,7 @@ def upgrade() -> None:
     op.create_table(
         "notifications",
         sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("recipient_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False, index=True),
+        sa.Column("recipient_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column(
             "notification_type",
             sa.Enum("info", "warning", "error", "success", "system", name="notificationtype"),
@@ -292,9 +292,9 @@ def upgrade() -> None:
     ))
     op.add_column("cms_pages", sa.Column("current_revision", sa.Integer, nullable=False, server_default="1"))
     op.add_column("cms_pages", sa.Column("published_by", sa.Integer,
-                                          sa.ForeignKey("users.id"), nullable=True))
+                                          sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True))
     op.add_column("cms_pages", sa.Column("reviewed_by", sa.Integer,
-                                          sa.ForeignKey("users.id"), nullable=True))
+                                          sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True))
     op.add_column("cms_pages", sa.Column("published_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column("cms_pages", sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True))
 
@@ -320,7 +320,7 @@ def upgrade() -> None:
         sa.Column("status_snapshot", sa.String(20), nullable=False),
         sa.Column("seo_title_snapshot", sa.String(255), nullable=True),
         sa.Column("seo_description_snapshot", sa.String(500), nullable=True),
-        sa.Column("changed_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("changed_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("change_note", sa.String(500), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint("page_id", "revision_number", name="uq_cms_revisions_page_rev"),

@@ -42,8 +42,8 @@ def upgrade() -> None:
     op.create_table(
         "exams",
         sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("patient_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("staff_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("patient_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("staff_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("exam_type", sa.String(200), nullable=False),
         sa.Column("findings_encrypted", sa.Text, nullable=True),
         sa.Column(
@@ -74,7 +74,7 @@ def upgrade() -> None:
         sa.Column("harvest_date", sa.Date, nullable=True),
         sa.Column("processing_date", sa.Date, nullable=True),
         sa.Column("expiry_date", sa.Date, nullable=True),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -95,7 +95,7 @@ def upgrade() -> None:
         ),
         sa.Column("location", sa.String(255), nullable=True),
         sa.Column("timestamp", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("operator_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("operator_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("notes", sa.Text, nullable=True),
         sa.Column(
             "created_at",
@@ -115,7 +115,7 @@ def upgrade() -> None:
         sa.Column("price", sa.Numeric(10, 2), nullable=False, server_default="0"),
         sa.Column("stock_quantity", sa.Integer, nullable=False, server_default="0"),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -134,8 +134,8 @@ def upgrade() -> None:
     op.create_table(
         "messages",
         sa.Column("id", sa.Integer, primary_key=True, index=True),
-        sa.Column("sender_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("recipient_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("sender_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("recipient_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("subject", sa.String(500), nullable=False),
         sa.Column("body_encrypted", sa.Text, nullable=False),
         sa.Column("is_read", sa.Boolean, nullable=False, server_default="false"),
@@ -155,7 +155,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(500), unique=True, nullable=False, index=True),
         sa.Column("content", sa.Text, nullable=False, server_default=""),
         sa.Column("is_published", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -181,7 +181,7 @@ def upgrade() -> None:
         ),
         sa.Column("subject_id", sa.Integer, nullable=True),
         sa.Column("subject_text", sa.String(255), nullable=True),
-        sa.Column("reviewer_id", sa.Integer, sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("reviewer_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("rating", sa.Integer, nullable=False),
         sa.Column("comment", sa.Text, nullable=True),
         sa.Column(
