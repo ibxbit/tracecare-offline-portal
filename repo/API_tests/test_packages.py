@@ -6,20 +6,6 @@ import httpx
 import pytest
 
 
-def _pkg_payload(name: str | None = None, items: list | None = None) -> dict:
-    if name is None:
-        name = f"pkg_{uuid.uuid4().hex[:8]}"
-    payload = {
-        "name": name,
-        "description": "Test package",
-        "price": "99.99",
-        "validity_window_days": 30,
-    }
-    if items is not None:
-        payload["items"] = items
-    return payload
-
-
 def _get_or_create_exam_item(client: httpx.Client, admin_headers: dict) -> int:
     """Return the id of an exam item usable in package tests."""
     # Try fetching existing items first
@@ -37,10 +23,27 @@ def _get_or_create_exam_item(client: httpx.Client, admin_headers: dict) -> int:
     return resp.json()["id"]
 
 
+def _pkg_payload(client: httpx.Client, admin_headers: dict, name: str | None = None, items: list | None = None) -> dict:
+    if name is None:
+        name = f"pkg_{uuid.uuid4().hex[:8]}"
+    if items is None:
+        # Create a real item because the schema requires at least one
+        item_id = _get_or_create_exam_item(client, admin_headers)
+        items = [{"exam_item_id": item_id, "is_required": True}]
+    payload = {
+        "name": name,
+        "description": "Test package",
+        "price": "99.99",
+        "validity_window_days": 30,
+        "items": items,
+    }
+    return payload
+
+
 class TestPackageCRUD:
     def test_admin_can_create_package(self, client: httpx.Client, admin_headers: dict):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        payload = _pkg_payload(items=[{"exam_item_id": item_id, "is_required": True}])
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
         resp = client.post("/api/packages", json=payload, headers=admin_headers)
         assert resp.status_code == 201
         body = resp.json()
@@ -52,7 +55,7 @@ class TestPackageCRUD:
     def test_package_items_included_in_payload(self, client: httpx.Client, admin_headers: dict):
         """items array with is_required flag must be accepted by backend."""
         item_id = _get_or_create_exam_item(client, admin_headers)
-        payload = _pkg_payload(items=[
+        payload = _pkg_payload(client, admin_headers, items=[
             {"exam_item_id": item_id, "is_required": True},
         ])
         resp = client.post("/api/packages", json=payload, headers=admin_headers)
@@ -65,7 +68,7 @@ class TestPackageCRUD:
 
     def test_package_requires_at_least_one_item(self, client: httpx.Client, admin_headers: dict):
         """Backend enforces min_length=1 on items list."""
-        payload = _pkg_payload(items=[])
+        payload = _pkg_payload(client, admin_headers, items=[])
         resp = client.post("/api/packages", json=payload, headers=admin_headers)
         assert resp.status_code == 422
 
@@ -76,9 +79,8 @@ class TestPackageCRUD:
 
     def test_get_package_by_id(self, client: httpx.Client, admin_headers: dict):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        pkg = client.post("/api/packages", json=_pkg_payload(
-            items=[{"exam_item_id": item_id, "is_required": True}]
-        ), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         resp = client.get(f"/api/packages/{pkg['id']}", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["id"] == pkg["id"]
@@ -90,7 +92,7 @@ class TestPackageCRUD:
 
     def test_package_price_stored_correctly(self, client: httpx.Client, admin_headers: dict):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        payload = _pkg_payload(items=[{"exam_item_id": item_id, "is_required": True}])
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
         payload["price"] = "149.99"
         pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         assert float(pkg["price"]) == 149.99
@@ -102,9 +104,8 @@ class TestPackageVersioning:
         self, client: httpx.Client, admin_headers: dict
     ):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        pkg = client.post("/api/packages", json=_pkg_payload(
-            items=[{"exam_item_id": item_id, "is_required": True}]
-        ), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         name = pkg["name"]
         pkg_id = pkg["id"]
 
@@ -125,7 +126,8 @@ class TestPackageVersioning:
     def test_versions_list_returns_all_versions(
         self, client: httpx.Client, admin_headers: dict
     ):
-        pkg = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers)
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         resp = client.get(f"/api/packages/{pkg['id']}/versions", headers=admin_headers)
         assert resp.status_code == 200
         assert len(resp.json()) >= 1
@@ -135,9 +137,8 @@ class TestPackageVersioning:
 class TestPackageDiff:
     def test_diff_between_versions(self, client: httpx.Client, admin_headers: dict):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        pkg_v1 = client.post("/api/packages", json=_pkg_payload(
-            items=[{"exam_item_id": item_id, "is_required": True}]
-        ), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
+        pkg_v1 = client.post("/api/packages", json=payload, headers=admin_headers).json()
         pkg_id = pkg_v1["id"]
 
         pkg_v2 = client.post(f"/api/packages/{pkg_id}/new-version", json={
@@ -167,9 +168,8 @@ class TestPackageDiff:
 
     def test_diff_same_package_returns_422(self, client: httpx.Client, admin_headers: dict):
         item_id = _get_or_create_exam_item(client, admin_headers)
-        pkg = client.post("/api/packages", json=_pkg_payload(
-            items=[{"exam_item_id": item_id, "is_required": True}]
-        ), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers, items=[{"exam_item_id": item_id, "is_required": True}])
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         resp = client.get(f"/api/packages/{pkg['id']}/diff/{pkg['id']}", headers=admin_headers)
         assert resp.status_code == 422
         client.delete(f"/api/packages/{pkg['id']}", headers=admin_headers)
@@ -177,13 +177,15 @@ class TestPackageDiff:
 
 class TestPackageActivation:
     def test_activate_package(self, client: httpx.Client, admin_headers: dict):
-        pkg = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers)
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         resp = client.patch(f"/api/packages/{pkg['id']}/activate", headers=admin_headers)
         assert resp.status_code in (200, 204)
         client.delete(f"/api/packages/{pkg['id']}", headers=admin_headers)
 
     def test_deactivate_package(self, client: httpx.Client, admin_headers: dict):
-        pkg = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers)
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         client.patch(f"/api/packages/{pkg['id']}/activate", headers=admin_headers)
         resp = client.patch(f"/api/packages/{pkg['id']}/deactivate", headers=admin_headers)
         assert resp.status_code in (200, 204)
@@ -192,13 +194,14 @@ class TestPackageActivation:
     def test_end_user_cannot_activate(
         self, client: httpx.Client, admin_headers: dict, temp_end_user_headers: dict
     ):
-        pkg = client.post("/api/packages", json=_pkg_payload(), headers=admin_headers).json()
+        payload = _pkg_payload(client, admin_headers)
+        pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         resp = client.patch(f"/api/packages/{pkg['id']}/activate", headers=temp_end_user_headers)
         assert resp.status_code == 403
         client.delete(f"/api/packages/{pkg['id']}", headers=admin_headers)
 
     def test_duplicate_name_same_version_rejected(self, client: httpx.Client, admin_headers: dict):
-        payload = _pkg_payload()
+        payload = _pkg_payload(client, admin_headers)
         pkg = client.post("/api/packages", json=payload, headers=admin_headers).json()
         # Attempt to create another package with the same name at version 1
         resp = client.post("/api/packages", json=payload, headers=admin_headers)
