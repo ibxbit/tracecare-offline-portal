@@ -312,7 +312,7 @@ def update_parameter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parameter not found")
     if param.is_readonly:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Parameter '{key}' is read-only",
         )
     param.value = payload.value

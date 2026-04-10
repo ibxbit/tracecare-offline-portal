@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +100,11 @@ class ThreadResponse(BaseModel):
     participants: list[ThreadParticipantResponse]
     messages: list[ThreadMessageResponse]
     my_unread_count: int = 0
+
+    @computed_field
+    @property
+    def status(self) -> str:
+        return "archived" if self.is_archived else "active"
 
     model_config = {"from_attributes": True}
 

@@ -47,9 +47,11 @@ class SensitiveDataFilter(logging.Filter):
         try:
             record.msg = _redact(str(record.msg))
             if isinstance(record.args, dict):
-                record.args = {k: _redact(str(v)) for k, v in record.args.items()}
+                record.args = {k: (_redact(v) if isinstance(v, str) else v) for k, v in record.args.items()}
             elif isinstance(record.args, (list, tuple)):
-                record.args = type(record.args)(_redact(str(a)) for a in record.args)
+                record.args = type(record.args)(
+                    (_redact(a) if isinstance(a, str) else a) for a in record.args
+                )
         except Exception:
             pass  # Never let the filter break log emission
         return True

@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.models.admin import ProxyProtocol, TaskPriority, TaskStatus, ValueType
 
@@ -218,6 +218,11 @@ class ProxyHealthResult(BaseModel):
     is_healthy: bool
     checked_at: datetime
     detail: str
+
+    @computed_field
+    @property
+    def reachable(self) -> bool:
+        return self.is_healthy
 
 
 # ---------------------------------------------------------------------------

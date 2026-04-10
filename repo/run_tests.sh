@@ -20,46 +20,15 @@ echo "======================================================"
 echo "  TraceCare Test Suite"
 echo "======================================================"
 
-# Bring up the backend stack in detached mode (idempotent — safe to re-run).
-echo "[1/3] Starting core services (db + backend)..."
-$COMPOSE up -d db backend
+# Bring up the core services and wait for the backend to pass its healthcheck.
+# We run 'up backend' which will trigger dependencies.
+echo "[1/2] Preparing environment (db + backend)..."
+$COMPOSE up -d backend
 
-# Poll until backend is healthy (up to 90 s).
-echo "[2/3] Waiting for backend to become healthy..."
-RETRIES=18
-INTERVAL=5
-for i in $(seq 1 $RETRIES); do
-    STATUS=$($COMPOSE ps --format json backend 2>/dev/null | python3 -c "
-import sys, json
-data = sys.stdin.read().strip()
-# docker compose ps --format json may emit one JSON object per line
-for line in data.splitlines():
-    try:
-        obj = json.loads(line)
-        print(obj.get('Health', obj.get('Status', 'unknown')))
-        break
-    except Exception:
-        pass
-print('unknown')
-" 2>/dev/null | head -1 || echo "unknown")
+echo "[2/2] Running unit_tests/ and API_tests/..."
+# The 'tester' service depends on 'backend' being healthy. 
+# Docker Compose will automatically wait for the healthcheck to pass before running the tester.
 
-    if [[ "$STATUS" == "healthy" ]]; then
-        echo "  Backend is healthy."
-        break
-    fi
-
-    if [[ $i -eq $RETRIES ]]; then
-        echo "  ERROR: Backend did not become healthy after $((RETRIES * INTERVAL)) seconds."
-        $COMPOSE logs backend | tail -30
-        exit 1
-    fi
-
-    echo "  Waiting ($i/$RETRIES)... status=${STATUS}"
-    sleep $INTERVAL
-done
-
-# Run the tester service (--profile test activates it; --rm removes container after).
-echo "[3/3] Running unit_tests/ and API_tests/..."
 $COMPOSE --profile test run --rm tester
 EXIT_CODE=$?
 

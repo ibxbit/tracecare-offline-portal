@@ -185,9 +185,11 @@ def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get
     old_sid = token_data.get("sid")
 
     # ── Validate session binding ────────────────────────────────────────────
-    # If a session hash is set, the old sid must match it.
-    if user.session_token_hash and old_sid:
-        if _session_hash(old_sid) != user.session_token_hash:
+    # If the refresh token carries a session ID, the user must have a matching
+    # session_token_hash.  A cleared hash (logout-all) or a hash mismatch
+    # (new login on another device) both count as invalidated.
+    if old_sid:
+        if not user.session_token_hash or _session_hash(old_sid) != user.session_token_hash:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session has been invalidated. Please log in again.",

@@ -179,7 +179,7 @@ def emit_order_status_notification(
 @router.get("", response_model=list[NotificationBrief])
 def list_notifications(
     unread_only: bool = Query(default=False),
-    notification_type: NotificationType | None = Query(default=None),
+    notification_type: NotificationType | None = Query(default=None, alias="type"),
     event_subtype: str | None = Query(default=None, max_length=50),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),

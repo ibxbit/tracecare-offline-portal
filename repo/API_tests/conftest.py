@@ -54,7 +54,7 @@ def _create_user(client: httpx.Client, admin_headers: dict, role: str = "end_use
     uid = uuid.uuid4().hex[:10]
     username = f"tmp_{uid}"
     password = "TmpPass@2024!"
-    email = f"{username}@test.local"
+    email = f"{username}@example.com"
     resp = client.post("/api/users", json={
         "username": username,
         "email": email,
