@@ -4,7 +4,7 @@ Question: Should package validity be auto-expired by a scheduler when the publis
 
 Hypothesis: Runtime checks already block invalid usage, but stale "active" records can confuse staff and end users.
 
-Solution: Add a periodic background cleanup job that marks overdue packages as inactive and records an audit entry.
+Solution: Confirm the intended expiry mechanism first. The reviewed repo surfaces do not show a clear package-expiry scheduler yet, so any cleanup job should be implemented explicitly rather than assumed.
 
 ---
 
@@ -20,7 +20,7 @@ Question: Should the "one follow-up review within 14 days" window use order comp
 
 Hypothesis: Using order completion time gives deterministic policy and avoids ambiguity when first review is delayed.
 
-Solution: Enforce follow-up eligibility against order completion timestamp and expose remaining window in review detail.
+Solution: Enforce follow-up eligibility against the order completion timestamp and expose the remaining window in review detail.
 
 ---
 

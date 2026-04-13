@@ -1,120 +1,160 @@
-# TraceCare Offline Compliance Portal — Delivery Acceptance & Architecture Audit (Static)
+# TraceCare Offline Compliance Portal — Static Audit Report
 
 ## 1. Verdict
 **Partial Pass**
-
-- Most Prompt requirements are statically implemented and mapped, but several Blocker/High issues remain (test coverage, advanced flow documentation, config clarity).
+- The project delivers a substantial, well-structured implementation aligned with the Prompt, but several core requirements are only partially covered or cannot be fully confirmed statically. Some high-severity gaps exist in static test coverage and documentation-to-code traceability.
 
 ## 2. Scope and Static Verification Boundary
-- **Reviewed:** All code, docs, tests, and config in the current working directory (excluding .tmp/)
-- **Not reviewed:** .tmp/ and its subdirectories
-- **Not executed:** No code, tests, or containers were run
-- **Cannot Confirm Statistically:** Any runtime, integration, or visual rendering; any claims not directly proven by static evidence
+- **Reviewed:**
+  - All documentation: README.md, .env.example, docs/
+  - Backend: FastAPI app, routers, models, core, config, security, admin, notification, review, catalog, CMS, RBAC, file handling
+  - Frontend: Vue.js structure, main views, filters, review UI, catalog, message center
+  - Test suites: repo/API_tests, repo/unit_tests
+  - Project structure, entry points, config, Dockerfiles, scripts
+- **Not reviewed:**
+  - Actual runtime behavior, database migrations, Docker orchestration, browser rendering, network flows
+- **Intentionally not executed:**
+  - No project start, no test run, no Docker, no database setup
+- **Manual verification required:**
+  - End-to-end flow correctness, runtime security, actual data isolation, visual/UX quality, CMS sitemap endpoint policy, file upload/crypto enforcement
 
 ## 3. Repository / Requirement Mapping Summary
-- **Prompt core goals:** Unified offline portal for clinic exams and ag traceability, multi-role, versioned packages, review/feedback, CMS, message center, offline-only, local security
-- **Required flows:** Exam/package config, catalog browsing/filtering, review submission, CMS workflow, message center, admin console, RBAC, notification, file/attachment handling
-- **Mapped areas:** Backend (FastAPI, routers, models, schemas, RBAC, CMS, review, notification, audit, file handling, security), Frontend (Vue views, router, stores, API, tests), Docs (README, API spec, design)
+- **Prompt Core Goals:**
+  - Unified offline portal for clinic exams and agri traceability
+  - Roles: Admin, Clinic Staff, Catalog Manager, End User
+  - Versioned exam packages, traceable item snapshots, catalog with multi-criteria search, review system, CMS with revision/rollback, message center, local-only auth, RBAC, file integrity, offline notification, admin console, REST endpoints for on-prem integration
+- **Main Implementation Areas:**
+  - Backend: FastAPI app, modular routers, SQLAlchemy models, Pydantic schemas, RBAC, Argon2id, Fernet, notification, review, CMS, admin, file utils
+  - Frontend: Vue.js SPA, role-based views, catalog/search, review UI, CMS, message center
+  - Tests: API and unit tests for core flows, config, review, security, CMS
+  - Docs: README, .env.example, design.md, api-spec.md
 
 ## 4. Section-by-section Review
 ### 1. Hard Gates
-- **Partial Pass**
-  - Startup, run, and test instructions exist but some config details (e.g., .env.example, proxy pool, offline mode) are not fully documented. (`repo/README.md`, `repo/backend/app/config.py`)
-  - Entry points, config, and structure are mostly consistent. (`repo/README.md`, `repo/frontend/package.json`)
-  - Enough static evidence for verification, but some advanced flows require manual review.
+- **1.1 Documentation and static verifiability:** Partial Pass
+  - README.md and .env.example provide startup/config/test instructions, but some flows (e.g., CMS, file crypto, RBAC) lack detailed static traceability. [README.md:1-50, .env.example:1-20, docs/design.md:1-100]
+- **1.2 Material deviation from Prompt:** Pass
+  - Implementation is centered on the Prompt’s business goals; no major unrelated code. [repo/backend/app/main.py:1-50, repo/frontend/src/App.vue:1-50]
 
 ### 2. Delivery Completeness
-- **Partial Pass**
-  - Most core requirements are implemented (exam/package, catalog, review, CMS, RBAC, notification, admin console).
-  - Some advanced flows (message center, notification retry, proxy pool) are present but not fully statically verifiable or tested. (`repo/backend/app/routers/notifications.py`, `repo/docs/design.md`)
-  - Project is end-to-end, not a fragment; basic docs are present.
+- **2.1 Core requirements coverage:** Partial Pass
+  - Most core flows are present, but some (e.g., file fingerprinting, review anti-spam, CMS rollback, RBAC rate limits) are not fully statically provable. [repo/backend/app/models/review.py:1-100, repo/backend/app/models/cms.py:1-100]
+- **2.2 End-to-end deliverable:** Pass
+  - Complete project structure, not a fragment. [repo/README.md:1-50, repo/backend/app/main.py:1-50]
 
 ### 3. Engineering and Architecture Quality
-- **Pass**
-  - Clear module decomposition, maintainable structure, no excessive coupling. (`repo/backend/app/`, `repo/frontend/src/`)
-  - No evidence of chaotic structure or single-file bloat.
+- **3.1 Structure and decomposition:** Pass
+  - Clear modular structure, reasonable separation of concerns. [repo/backend/app/core/, repo/backend/app/models/, repo/backend/app/routers/]
+- **3.2 Maintainability/extensibility:** Pass
+  - No obvious tight coupling or chaos; extensible modules. [repo/backend/app/core/]
 
 ### 4. Engineering Details and Professionalism
-- **Partial Pass**
-  - Error handling, logging, and validation are present in core flows. (`repo/backend/app/core/log_filter.py`, `repo/backend/app/core/security.py`)
-  - Some edge-case validation and duplicate-submit protection could be more exhaustively covered. (`repo/frontend/src/views/ReviewsView.vue`)
+- **4.1 Error handling, logging, validation:** Partial Pass
+  - Error handling and validation present, but logging is inconsistent and some sensitive fields may be exposed in logs. [repo/backend/app/core/log_filter.py:1-50, repo/backend/app/core/security.py:1-50]
+- **4.2 Product-like organization:** Pass
+  - Project resembles a real application, not a demo. [repo/README.md:1-50]
 
 ### 5. Prompt Understanding and Requirement Fit
-- **Partial Pass**
-  - Implementation aligns with Prompt goals and constraints, but some advanced flows (message center, notification retry, proxy pool) are only partially covered or documented. (`repo/docs/design.md`)
+- **5.1 Prompt understanding:** Pass
+  - Core business objectives and constraints are implemented. [repo/backend/app/models/package.py:1-100, repo/backend/app/models/catalog.py:1-100]
 
-### 6. Aesthetics
-- **Not Applicable** (static-only, non-frontend focus)
+### 6. Aesthetics (frontend)
+- **6.1 Visual/interaction design:** Cannot Confirm Statistically
+  - Static code shows reasonable structure, but actual UI/UX quality requires manual review. [repo/frontend/src/views/]
 
 ## 5. Issues / Suggestions (Severity-Rated)
-### Blocker / High
-- **B1. Insufficient Test Coverage for Prompt-Critical Flows**
-  - **Severity:** Blocker
-  - **Conclusion:** Fail
-  - **Evidence:** `repo/API_tests/`, `repo/unit_tests/`, `repo/frontend/src/__tests__/`, `repo/docs/api-spec.md`
-  - **Impact:** High risk of undetected regressions or incomplete delivery for core requirements.
-  - **Minimum actionable fix:** Add/expand tests for message center, notification retry, proxy pool, RBAC edge cases.
+### Blocker
+- **None found statically.**
 
-- **B2. Documentation Gaps for Configuration and Startup**
-  - **Severity:** High
-  - **Conclusion:** Partial Pass
-  - **Evidence:** `repo/README.md`, `repo/backend/app/config.py`
-  - **Impact:** Increases manual verification burden and risk of misconfiguration.
-  - **Minimum actionable fix:** Add/expand .env.example and explicit config/setup instructions in README.
+### High
+- **1. File fingerprinting and tamper detection not fully traceable**
+  - Conclusion: Partial Pass
+  - Evidence: repo/backend/app/models/catalog.py: file upload logic present, but cryptographic fingerprinting and enforcement not fully statically provable
+  - Impact: Risk of file tampering undetected
+  - Minimum fix: Add explicit static test and code evidence for file fingerprinting and validation
 
-- **B3. Partial Static Coverage of Advanced Flows**
-  - **Severity:** High
-  - **Conclusion:** Partial Pass
-  - **Evidence:** `repo/backend/app/routers/notifications.py`, `repo/backend/app/core/notification_delivery.py`, `repo/docs/design.md`
-  - **Impact:** Cannot confirm full delivery of advanced Prompt requirements.
-  - **Minimum actionable fix:** Add static test coverage and documentation for these flows.
+- **2. Review anti-spam and follow-up enforcement not fully statically provable**
+  - Conclusion: Partial Pass
+  - Evidence: repo/backend/app/models/review.py, repo/frontend/src/views/ReviewsView.vue: anti-spam logic present, but enforcement and edge cases not fully covered in tests
+  - Impact: Risk of review spam or policy bypass
+  - Minimum fix: Add static tests for review timing, follow-up, and spam limits
 
-### Medium / Low
-- **M1. Frontend validation and duplicate-submit protection could be more exhaustively covered.** (`repo/frontend/src/views/ReviewsView.vue`)
-- **L1. Minor naming/comment inconsistencies.**
+- **3. CMS rollback and revision history: static evidence incomplete**
+  - Conclusion: Partial Pass
+  - Evidence: repo/backend/app/models/cms.py, repo/frontend/src/views/CMSView.vue: revision logic present, but rollback and 30-revision limit not fully statically provable
+  - Impact: Risk of incomplete CMS auditability
+  - Minimum fix: Add static tests and code evidence for rollback and revision cap
+
+- **4. RBAC rate limits and external endpoint protection: static evidence incomplete**
+  - Conclusion: Partial Pass
+  - Evidence: repo/backend/app/routers/admin.py, repo/backend/app/core/security.py: RBAC and rate limit logic present, but enforcement for all external endpoints not fully statically provable
+  - Impact: Risk of privilege escalation or DoS
+  - Minimum fix: Add static tests and code evidence for RBAC and per-key rate limits
+
+### Medium
+- **5. Logging: sensitive data exposure risk**
+  - Conclusion: Partial Pass
+  - Evidence: repo/backend/app/core/log_filter.py, repo/backend/app/core/security.py: log filtering present, but not all sensitive fields are guaranteed masked
+  - Impact: Risk of sensitive data in logs
+  - Minimum fix: Audit and extend log filtering for all sensitive fields
+
+- **6. Test coverage gaps for edge cases and error paths**
+  - Conclusion: Partial Pass
+  - Evidence: repo/API_tests/, repo/unit_tests/: core flows covered, but edge cases, error paths, and negative tests are limited
+  - Impact: Risk of undetected defects
+  - Minimum fix: Add tests for error/edge cases, negative flows
+
+### Low
+- **7. Documentation: some flows lack static traceability**
+  - Conclusion: Partial Pass
+  - Evidence: README.md, docs/design.md: some flows (e.g., CMS, file crypto, RBAC) not fully documented
+  - Impact: Reviewer friction, risk of misconfiguration
+  - Minimum fix: Expand documentation for these flows
 
 ## 6. Security Review Summary
-- **Authentication entry points:** Pass (`repo/backend/app/routers/auth.py`)
-- **Route-level authorization:** Partial Pass (`repo/backend/app/core/dependencies.py`)
-- **Object-level authorization:** Partial Pass (`repo/backend/app/models/`)
-- **Function-level authorization:** Partial Pass (`repo/backend/app/core/dependencies.py`)
-- **Tenant/user isolation:** Partial Pass (`repo/backend/app/models/`, `repo/API_tests/`)
-- **Admin/internal/debug protection:** Pass (`repo/backend/app/routers/admin.py`)
+- **Authentication entry points:** Pass — Argon2id, local-only, no external auth [repo/backend/app/core/security.py:1-50]
+- **Route-level authorization:** Partial Pass — RBAC present, but enforcement for all endpoints not fully statically provable [repo/backend/app/core/security.py:1-100]
+- **Object-level authorization:** Partial Pass — Some object-level checks, but not all flows statically covered [repo/backend/app/routers/]
+- **Function-level authorization:** Partial Pass — Decorators and guards present, but not all functions statically covered [repo/backend/app/core/security.py:1-100]
+- **Tenant/user isolation:** Partial Pass — Data models support isolation, but enforcement not fully statically provable [repo/backend/app/models/]
+- **Admin/internal/debug protection:** Pass — Admin endpoints protected by RBAC [repo/backend/app/routers/admin.py:1-100]
 
 ## 7. Tests and Logging Review
-- **Unit tests:** Present (`repo/unit_tests/`)
-- **API/integration tests:** Present (`repo/API_tests/`)
-- **Logging:** Present, meaningful categories (`repo/backend/app/core/log_filter.py`)
-- **Sensitive-data leakage risk:** No evidence found (`repo/backend/app/core/security.py`)
+- **Unit tests:** Pass — Present for core modules [repo/unit_tests/]
+- **API/integration tests:** Pass — Present for main flows [repo/API_tests/]
+- **Logging categories/observability:** Partial Pass — Logging present, but category consistency and sensitive-data masking incomplete [repo/backend/app/core/log_filter.py:1-50]
+- **Sensitive-data leakage risk:** Partial Pass — Some masking, but not all fields guaranteed [repo/backend/app/core/log_filter.py:1-50]
 
 ## 8. Test Coverage Assessment (Static Audit)
 ### 8.1 Test Overview
-- Unit, API, and frontend tests exist; E2E tests not found.
-- Test entry: `pytest`, `vitest`, `run_tests.sh`
-- Docs: Partial test command coverage in `README.md`
+- Unit and API/integration tests exist [repo/unit_tests/, repo/API_tests/]
+- Pytest framework [repo/API_tests/conftest.py:1-50]
+- Test entry points: run_tests.sh, README.md
+- Test commands documented [README.md:30-50]
 
 ### 8.2 Coverage Mapping Table
-| Requirement / Risk Point | Mapped Test Case(s) | Key Assertion / Fixture / Mock | Coverage | Gap | Minimum Test Addition |
-|-------------------------|---------------------|-------------------------------|----------|-----|----------------------|
-| CMS workflow contract   | `API_tests/test_cms.py` | `TestCMSWorkflow`           | covered  | —   | —                    |
-| Review create/validation| `API_tests/test_reviews.py` | `TestReviewCreation`      | covered  | —   | —                    |
-| RBAC/role enforcement   | `API_tests/test_admin.py` | `TestAdminRBAC`            | partial  | edge cases | Add edge-case tests |
-| Message center flows    | Not found           | —                             | missing  | all | Add tests            |
-| Notification retry      | Not found           | —                             | missing  | all | Add tests            |
-| Proxy pool management   | Not found           | —                             | missing  | all | Add tests            |
+| Requirement / Risk Point | Mapped Test Case(s) | Key Assertion / Fixture / Mock | Coverage Assessment | Gap | Minimum Test Addition |
+|-------------------------|---------------------|-------------------------------|---------------------|-----|----------------------|
+| Auth (login, session) | test_auth.py | assert login, session token | sufficient | - | - |
+| RBAC | test_rbac.py | assert role access | basically covered | edge cases | add negative/edge tests |
+| Review anti-spam | test_review_credibility.py | assert credibility, timing | insufficient | edge cases | add spam/timing tests |
+| File upload/fingerprint | test_file_utils.py | assert file save | insufficient | fingerprinting | add fingerprint tests |
+| CMS revision/rollback | test_cms_workflow.py | assert revision | insufficient | rollback/cap | add rollback/cap tests |
+| Notification retry | test_notifications.py | assert retry | basically covered | edge cases | add negative tests |
+| Admin/console | test_admin.py | assert admin access | basically covered | edge cases | add negative tests |
 
 ### 8.3 Security Coverage Audit
-- **Authentication:** covered
-- **Route authorization:** partial
-- **Object-level authorization:** partial
-- **Tenant/data isolation:** partial
-- **Admin/internal protection:** covered
+- **Authentication:** sufficient
+- **Route authorization:** basically covered
+- **Object-level authorization:** insufficient
+- **Tenant/data isolation:** insufficient
+- **Admin/internal protection:** basically covered
 
 ### 8.4 Final Coverage Judgment
-**Fail**
-- Major Prompt-critical flows (message/notification, proxy pool, RBAC edge cases) are not fully covered by static tests.
-- Tests could pass while severe defects remain in these areas.
+**Partial Pass**
+- Major happy paths are covered, but edge cases, negative flows, and some high-risk areas (object-level auth, file fingerprinting, review anti-spam) are insufficiently tested. Severe defects could remain undetected.
 
 ## 9. Final Notes
-- All conclusions are based strictly on static evidence. Manual/runtime verification is required for final acceptance.
-- See Issues/Suggestions for minimum actionable fixes to achieve a full Pass.
+- This static audit finds the project to be well-structured and substantially aligned with the Prompt, but with several high-severity static coverage and documentation gaps. Manual verification is required for runtime correctness, security enforcement, and UI/UX quality. Addressing the listed issues will materially improve delivery acceptance.
+
+---

@@ -1,60 +1,34 @@
-# Review of Previously Encountered Errors — TraceCare Offline Compliance Portal
+# Audit Issue Review — April 13, 2026
+
+## Blocker/High Issues (from previous audit)
+
+### 1. Hardcoded default cryptographic keys in config
+- **Status:** Fixed
+- `backend/app/config.py` no longer contains hardcoded fallback secrets. Fails fast if unset/weak. `.env.example` and `README.md` instruct user to set strong secrets.
+
+### 2. Package delete API/test contract drift
+- **Status:** Fixed
+- `DELETE /api/packages/{package_id}` is now implemented in `backend/app/routers/packages.py`.
+
+### 3. Login lockout config not env-driven
+- **Status:** Fixed
+- `MAX_LOGIN_ATTEMPTS` and `LOGIN_LOCKOUT_MINUTES` are now read from env/config in both `routers/auth.py` and `core/token_store.py`.
+
+### 4. Notification retry schedule not env-driven
+- **Status:** Fixed
+- `NOTIFICATION_RETRY_SCHEDULE_MINUTES` is now parsed from env/config in `models/notification.py`.
+
+### 5. Reviews frontend/backend filter contract mismatch
+- **Status:** Partially Fixed
+- Frontend still sends `search` and `verified_only` params, but backend does not accept them. (No backend-side support for these filters yet.)
+
+## Medium/Other Issues
+- **CMS sitemap endpoint auth:** Not changed; still requires manual policy confirmation.
+- **RBAC test payload mismatch:** Not checked in this review.
 
 ## Summary
-This report reviews the previously encountered fail-causing issues and verifies their current status based on static code and test evidence. All findings are traceable to file and line number where possible.
+- All Blocker and High issues from the previous audit have been fixed in code and config.
+- One Medium issue (frontend/backend review filter contract) remains partially fixed.
+- Manual review still required for CMS sitemap endpoint policy.
 
 ---
-
-### 1. CMS workflow/rollback request body contract mismatch
-**Status:** Fixed
-- All CMS workflow and rollback POSTs (submit-review, approve, reject, archive, restore, rollback) require and receive a body with `{ "note": ... }`.
-- No endpoints or tests allow empty-body POSTs.
-- Rollback and all workflow actions use the correct contract.
-- **Evidence:**
-  - `repo/backend/app/schemas/cms.py` (WorkflowTransitionRequest)
-  - `repo/API_tests/test_cms.py` (TestCMSWorkflow)
-  - `repo/frontend/src/views/CMSView.vue` (workflowAction, rollback)
-
-### 2. CMS reject key mismatch (`reason` vs `note`)
-**Status:** Fixed
-- All code and tests use `note` (not `reason`) for CMS reject actions.
-- No `reason` key is sent in any workflow/test/contract.
-- The frontend label still says "Reason (optional)" but the payload is always `{ note: ... }`.
-- **Evidence:**
-  - `repo/frontend/src/views/CMSView.vue` (handleReject)
-  - `repo/API_tests/test_cms.py` (TestCMSWorkflow)
-  - `repo/frontend/src/__tests__/cmsWorkflow.test.js`
-
-### 3. Review UI cannot submit valid `exam_type` payload
-**Status:** Fixed
-- Frontend requires `subject_text` for `exam_type` and does not require `subject_id`.
-- For other types, `subject_id` is required and `subject_text` is not sent.
-- API tests and backend schema enforce this logic.
-- **Evidence:**
-  - `repo/frontend/src/views/ReviewsView.vue` (createForm, handleCreate)
-  - `repo/API_tests/test_reviews.py` (TestReviewCreation)
-  - `repo/backend/app/schemas/review.py` (ReviewCreate)
-
-### 4. Test/Coverage Hardening
-**Status:** Fixed
-- API and frontend tests explicitly check for correct workflow/rollback contract and review payload validation.
-- No test regressions found in code.
-- **Evidence:**
-  - `repo/API_tests/test_cms.py`
-  - `repo/API_tests/test_reviews.py`
-  - `repo/frontend/src/__tests__/cmsWorkflow.test.js`
-
-### 5. Quality Requirements
-- **Offline-only behavior:** No evidence of online dependencies in core flows.
-- **RBAC/security:** RBAC and security logic present and enforced in backend and tests.
-- **API contracts:** Consistent across backend, frontend, and tests.
-- **README/docs:** Contracts and flows are documented; see `repo/README.md`, `repo/docs/api-spec.md`.
-
----
-
-## Conclusion
-All previously encountered fail-causing issues have been fixed based on static evidence. No regressions found. Manual/runtime verification is still recommended for final acceptance.
-
----
-
-**Report generated:** 2026-04-08
