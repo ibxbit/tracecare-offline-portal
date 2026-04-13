@@ -34,7 +34,7 @@ function availableActions(status) {
 function autoSlug(title) {
   return title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '-') // match implementation: replace special chars with hyphen
     .replace(/\s+/g, '-')
     .slice(0, 100)
 }

@@ -53,6 +53,11 @@ export const useOfflineStore = defineStore('offline', () => {
       .filter(k => k.startsWith(prefix))
       .forEach(k => localStorage.removeItem(k))
     _userId.value = 'anon'
+    // Remove any keys for the previous user after switching to anon
+    const anonPrefix = _prefix()
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(anonPrefix))
+      .forEach(k => localStorage.removeItem(k))
   }
 
   /** Fetch with automatic offline fallback to cache. */
