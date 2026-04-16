@@ -2,16 +2,24 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 
-class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://tracecare:tracecare@localhost:5432/tracecare"
-    SECRET_KEY: str = "change-me-32-char-secret-key-here-00"
-    ENCRYPTION_KEY: str = "Xk5MdUQ3c3pZSmtkekFLQ0lDN0NJcTlUMVVsR3BaTks="
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_HOURS: int = 12
 
-    # Local filesystem paths for uploaded files (created on first use).
-    ATTACHMENTS_DIR: str = "./uploads/catalog"
-    REVIEW_IMAGES_DIR: str = "./uploads/reviews"
+import os
+import sys
+import secrets
+
+class Settings(BaseSettings):
+    """
+    Application settings. All secrets/keys must be provided via environment variables in production.
+    Fails fast if SECRET_KEY or ENCRYPTION_KEY are missing or weak (unless running tests).
+    """
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://tracecare:tracecare@localhost:5432/tracecare")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+    REFRESH_TOKEN_EXPIRE_HOURS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_HOURS", "12"))
+
+    ATTACHMENTS_DIR: str = os.getenv("ATTACHMENTS_DIR", "./uploads/catalog")
+    REVIEW_IMAGES_DIR: str = os.getenv("REVIEW_IMAGES_DIR", "./uploads/reviews")
 
     @property
     def attachments_path(self) -> Path:
@@ -30,4 +38,14 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
+def _fail_fast_if_insecure(settings: Settings):
+    # Allow insecure for pytest only
+    if "pytest" in sys.modules:
+        return
+    if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32 or "change-me" in settings.SECRET_KEY:
+        raise RuntimeError("SECURITY ERROR: SECRET_KEY must be set to a strong random value (>=32 chars) in .env or environment.")
+    if not settings.ENCRYPTION_KEY or len(settings.ENCRYPTION_KEY) < 32:
+        raise RuntimeError("SECURITY ERROR: ENCRYPTION_KEY must be set to a strong random value (>=32 chars, base64) in .env or environment.")
+
 settings = Settings()
+_fail_fast_if_insecure(settings)

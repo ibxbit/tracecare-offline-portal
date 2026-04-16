@@ -30,8 +30,14 @@ def client() -> httpx.Client:
 # Admin authentication
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def admin_tokens(client: httpx.Client) -> dict:
+    """Function-scoped so every test gets a fresh admin session.
+
+    The backend rotates `session_token_hash` on every login, which means any
+    test that logs in as admin (e.g. refresh-rotation or last-login tests)
+    would invalidate a session-scoped token for every subsequent test.
+    """
     resp = client.post("/api/auth/login", json={
         "username": ADMIN_USERNAME,
         "password": ADMIN_PASSWORD,
@@ -40,7 +46,7 @@ def admin_tokens(client: httpx.Client) -> dict:
     return resp.json()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def admin_headers(admin_tokens: dict) -> dict:
     return {"Authorization": f"Bearer {admin_tokens['access_token']}"}
 
@@ -139,3 +145,79 @@ def temp_catalog_manager_tokens(client: httpx.Client, temp_catalog_manager: dict
 @pytest.fixture
 def temp_catalog_manager_headers(temp_catalog_manager_tokens: dict) -> dict:
     return {"Authorization": f"Bearer {temp_catalog_manager_tokens['access_token']}"}
+
+
+# ---------------------------------------------------------------------------
+# Real-entity factories
+# ---------------------------------------------------------------------------
+#
+# The application currently has no HTTP endpoint for placing an order, so
+# exercising downstream flows (reviews, order-status notifications) would
+# otherwise require skipping the most important leg of the journey. The
+# tester container mounts the backend at /app and shares the production
+# DATABASE_URL, so we import the real ORM models and persist real rows.
+#
+# This is NOT mocking. No review/notification/CMS code is stubbed — tests
+# that use these fixtures exercise the genuine API endpoints against real
+# DB rows that satisfy every FK and status invariant.
+
+
+@pytest.fixture(scope="session")
+def _backend_db():
+    """Session-scoped SQLAlchemy session bound to the backend's real DB."""
+    # Importing app.* requires the backend package to be importable.
+    # In the tester container PYTHONPATH=/app (see docker-compose.yml).
+    from app.database import SessionLocal  # type: ignore
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _make_order(
+    db,
+    customer_id: int,
+    *,
+    completed: bool = True,
+    order_type: str = "product",
+):
+    """Persist a real Order row and (by default) mark it completed so reviews can be submitted."""
+    from decimal import Decimal
+
+    from app.models.order import Order, OrderStatus, OrderType  # type: ignore
+
+    order = Order(
+        order_number=f"TEST-{uuid.uuid4().hex[:12].upper()}",
+        customer_id=customer_id,
+        order_type=OrderType(order_type),
+        status=OrderStatus.completed if completed else OrderStatus.pending,
+        is_completed=completed,
+        total_amount=Decimal("49.99"),
+        notes="Created by API_tests fixture",
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+@pytest.fixture
+def real_completed_order(_backend_db, temp_end_user: dict):
+    """A real, completed Order owned by a real end_user — ready for review submission."""
+    order = _make_order(_backend_db, customer_id=temp_end_user["id"], completed=True)
+    yield order
+    # Cleanup: clear reviews first (FK), then order
+    from app.models.review import Review  # type: ignore
+    _backend_db.query(Review).filter(Review.order_id == order.id).delete(synchronize_session=False)
+    _backend_db.query(type(order)).filter_by(id=order.id).delete(synchronize_session=False)
+    _backend_db.commit()
+
+
+@pytest.fixture
+def real_pending_order(_backend_db, temp_end_user: dict):
+    """A real, still-pending Order — used to confirm the 'completed only' guard."""
+    order = _make_order(_backend_db, customer_id=temp_end_user["id"], completed=False)
+    yield order
+    _backend_db.query(type(order)).filter_by(id=order.id).delete(synchronize_session=False)
+    _backend_db.commit()

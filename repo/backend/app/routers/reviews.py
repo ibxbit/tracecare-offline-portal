@@ -90,6 +90,7 @@ def _get_review_or_404(db: Session, review_id: int, *, load_images: bool = False
     q = select(Review).where(Review.id == review_id)
     if load_images:
         q = q.options(
+            selectinload(Review.order),
             selectinload(Review.images),
             selectinload(Review.followup_reviews),
         )
@@ -134,6 +135,41 @@ def _assert_order_completed(order: Order) -> None:
         )
 
 
+def _followup_deadline_from_order(order: Order) -> datetime | None:
+    # The Order model does not currently persist a separate completed_at
+    # timestamp, so fall back through updated_at → created_at. getattr with a
+    # default keeps compatibility if/when `completed_at` is added later.
+    completed_at = (
+        getattr(order, "completed_at", None)
+        or getattr(order, "updated_at", None)
+        or order.created_at
+    )
+    if completed_at is None:
+        return None
+    return completed_at + timedelta(days=FOLLOWUP_WINDOW_DAYS)
+
+
+def _followup_deadline_for_review(db: Session, review: Review) -> datetime | None:
+    if review.followup_deadline is not None:
+        return review.followup_deadline
+
+    order = getattr(review, "order", None)
+    if order is None:
+        order = db.execute(
+            select(Order).where(Order.id == review.order_id)
+        ).scalar_one_or_none()
+    if order is None:
+        return None
+    return _followup_deadline_from_order(order)
+
+
+def _followup_remaining_seconds(deadline: datetime | None) -> int | None:
+    if deadline is None:
+        return None
+    remaining = deadline - datetime.now(timezone.utc)
+    return max(0, int(remaining.total_seconds()))
+
+
 def _check_antispam(db: Session, reviewer_id: int, order_id: int) -> None:
     """Raise 429 if a review on this order was submitted within the rate-limit window."""
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=REVIEW_RATE_LIMIT_MINUTES)
@@ -164,6 +200,7 @@ def _to_response(review: Review, db: Session) -> ReviewResponse:
     followup_count = db.execute(
         select(func.count(Review.id)).where(Review.parent_review_id == review.id)
     ).scalar_one()
+    followup_deadline = _followup_deadline_for_review(db, review)
     return ReviewResponse(
         id=review.id,
         order_id=review.order_id,
@@ -176,7 +213,8 @@ def _to_response(review: Review, db: Session) -> ReviewResponse:
         tags=review.tags,
         is_followup=review.is_followup,
         parent_review_id=review.parent_review_id,
-        followup_deadline=review.followup_deadline,
+        followup_deadline=followup_deadline,
+        followup_remaining_seconds=_followup_remaining_seconds(followup_deadline),
         credibility_score=float(review.credibility_score),
         is_pinned=review.is_pinned,
         is_collapsed=review.is_collapsed,
@@ -300,13 +338,15 @@ def submit_followup(
     _assert_order_completed(followup_order)
 
     # Check 14-day window
-    deadline = parent.created_at + timedelta(days=FOLLOWUP_WINDOW_DAYS)
+    deadline = _followup_deadline_from_order(followup_order)
     now = datetime.now(timezone.utc)
-    if now > deadline:
+    if deadline is None or now > deadline:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
-                f"The 14-day follow-up window for this review closed on "
+                "The 14-day follow-up window for this order is unavailable or has closed."
+                if deadline is None else
+                f"The 14-day follow-up window for this order closed on "
                 f"{deadline.strftime('%Y-%m-%d %H:%M UTC')}."
             ),
         )
@@ -520,6 +560,8 @@ def list_reviews(
 
     if not include_collapsed:
         q = q.where(Review.is_collapsed == False)  # noqa: E712
+
+    q = q.options(selectinload(Review.order), selectinload(Review.images))
 
     if subject_type is not None:
         q = q.where(Review.subject_type == subject_type)

@@ -39,12 +39,24 @@ class TestLogin:
         resp = client.post("/api/auth/login", json={"username": "", "password": ""})
         assert resp.status_code in (401, 422)
 
-    def test_login_sets_last_login(self, client: httpx.Client, admin_headers: dict):
-        client.post("/api/auth/login", json={
-            "username": ADMIN_USERNAME, "password": ADMIN_PASSWORD
-        })
-        resp = client.get("/api/users/me", headers=admin_headers)
+    def test_login_sets_last_login(self, client: httpx.Client):
+        """A successful login must yield tokens that authenticate /users/me.
+
+        This test logs in directly (no session-scoped admin_headers) because
+        every admin login rotates session_token_hash — reusing stale headers
+        after a fresh login would fail with 401.
+        """
+        tokens = client.post("/api/auth/login", json={
+            "username": ADMIN_USERNAME, "password": ADMIN_PASSWORD,
+        }).json()
+        resp = client.get(
+            "/api/users/me",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
         assert resp.status_code == 200
+        # UserResponse doesn't expose last_login; round-trip via the token is
+        # enough to confirm login succeeded and the subsequent auth works.
+        assert resp.json()["username"] == ADMIN_USERNAME
 
 
 class TestAccountLockout:

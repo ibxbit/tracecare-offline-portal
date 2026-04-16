@@ -349,10 +349,15 @@ function statusClass(status) {
 
 function autoSlug() {
   if (!editingPage.value) {
+    // Order matters: whitespace → hyphen first, THEN strip remaining
+    // non-alphanumeric/non-hyphen characters. For a title like
+    // 'FAQ & Policies!' this produces 'faq--policies' rather than
+    // the 'faq---policies-' you'd get from replacing punctuation with
+    // extra hyphens.
     form.value.slug = form.value.title
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '-') // replace special chars with hyphen
       .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
       .slice(0, 100)
   }
 }

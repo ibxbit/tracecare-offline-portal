@@ -12,6 +12,7 @@ Security features implemented here:
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timezone
 
@@ -38,8 +39,12 @@ from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_MAX_FAILURES = 5
-_LOCKOUT_MINUTES = 15
+
+from app.config import settings
+
+# Use env-driven config for login lockout
+_MAX_FAILURES = int(getattr(settings, "MAX_LOGIN_ATTEMPTS", int(os.getenv("MAX_LOGIN_ATTEMPTS", 5))))
+_LOCKOUT_MINUTES = int(getattr(settings, "LOGIN_LOCKOUT_MINUTES", int(os.getenv("LOGIN_LOCKOUT_MINUTES", 15))))
 
 
 def _client_ip(request: Request) -> str:

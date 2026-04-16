@@ -32,35 +32,45 @@ def run_migrations():
     print("Migrations applied successfully.")
 
 
-def create_default_admin():
+DEFAULT_USERS = [
+    # (username, email, password, role)
+    ("admin",   "admin@example.com",   "Admin@123!",    UserRole.admin),
+    ("staff",   "staff@example.com",   "Staff@123!",    UserRole.clinic_staff),
+    ("catalog", "catalog@example.com", "Catalog@123!",  UserRole.catalog_manager),
+    ("patient", "patient@example.com", "Patient@123!",  UserRole.end_user),
+]
+
+
+def create_default_users():
+    """Seed the four demo users documented in the README.
+
+    Idempotent: existing users are left alone so repeated startups are safe.
+    """
     db = SessionLocal()
     try:
-        existing = db.execute(
-            select(User).where(User.username == "admin")
-        ).scalar_one_or_none()
-        if existing:
-            print("Default admin user already exists. Skipping creation.")
-            return
-        admin_email = "admin@tracecare.local"
-        admin = User(
-            username="admin",
-            email=admin_email,
-            email_hash=_email_hash(admin_email),
-            hashed_password=hash_password("Admin@123!"),
-            role=UserRole.admin,
-            is_active=True,
-        )
-        db.add(admin)
+        for username, email, password, role in DEFAULT_USERS:
+            existing = db.execute(
+                select(User).where(User.username == username)
+            ).scalar_one_or_none()
+            if existing:
+                print(f"Default user '{username}' already exists. Skipping.")
+                continue
+            u = User(
+                username=username,
+                email=email,
+                email_hash=_email_hash(email),
+                hashed_password=hash_password(password),
+                role=role,
+                is_active=True,
+            )
+            db.add(u)
+            print(f"Seeded default user: {username} / {password} ({role.value})")
         db.commit()
-        print("Default admin user created:")
-        print("  Username: admin")
-        print("  Password: Admin@123!")
-        print("  IMPORTANT: Change the password immediately after first login!")
     finally:
         db.close()
 
 
 if __name__ == "__main__":
     run_migrations()
-    create_default_admin()
+    create_default_users()
     print("\nDatabase initialization complete.")

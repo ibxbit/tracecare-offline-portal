@@ -32,10 +32,15 @@ function availableActions(status) {
 }
 
 function autoSlug(title) {
+  // Mirror the implementation in CMSView.vue.
+  // Order matters: whitespace → hyphen first, THEN strip remaining
+  // non-alphanumeric/non-hyphen characters. This produces sensible output
+  // for titles containing punctuation like 'FAQ & Policies!' →
+  // 'faq & policies!' → 'faq-&-policies!' → 'faq--policies'.
   return title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '-') // match implementation: replace special chars with hyphen
     .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
     .slice(0, 100)
 }
 

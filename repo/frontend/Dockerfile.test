@@ -1,11 +1,34 @@
-# Dockerfile for running frontend tests
+# Frontend test image: installs deps at build time so the test runtime
+# does NOT depend on network access to registry.npmjs.org.
+#
+# rollup/vite ship native binaries that must match the target platform;
+# an explicit install of @rollup/rollup-linux-x64-musl compensates for
+# a known npm optional-deps bug (npm/cli#4828) that otherwise leaves the
+# linux-musl build missing its native addon.
 FROM node:20-alpine
+
 WORKDIR /app
-COPY package.json .
-COPY vite.config.js .
-COPY vitest.config.js .
-COPY tailwind.config.js .
-COPY postcss.config.js .
+
+# 1. Dependency manifests first — keeps the install layer cacheable.
+COPY package.json ./
+COPY package-lock.json* ./
+
+# 2. Install everything at build time.
+#    --legacy-peer-deps: @vitejs/plugin-vue peer bounds are wider than the
+#                       root project's exact vite version.
+#    --no-audit --no-fund: quieter, faster builds.
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm install --no-audit --no-fund --legacy-peer-deps \
+    && npm install --no-save --legacy-peer-deps @rollup/rollup-linux-x64-musl
+
+# 3. Copy the rest of the frontend sources (overwritten at runtime by the
+#    bind mount in docker-compose — but present here so the image is
+#    self-contained if run without the mount).
+COPY vite.config.js vitest.config.js tailwind.config.js postcss.config.js ./
 COPY ./src ./src
-RUN npm install
+COPY ./index.html ./index.html
+
+# 4. Runtime: execute the test suite only — no install step at runtime.
 CMD ["npm", "run", "test"]

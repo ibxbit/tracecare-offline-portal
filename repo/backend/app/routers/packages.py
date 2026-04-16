@@ -617,3 +617,24 @@ def remove_item_from_package(
     return new_pkg
 
 
+# ---------------------------------------------------------------------------
+# Delete endpoint (safe delete)
+# ---------------------------------------------------------------------------
+
+@router.delete("/{package_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(*_WRITERS)),
+):
+    """
+    Delete a package version by ID. Only allowed for admin/clinic_staff.
+    Fails if the package does not exist.
+    """
+    pkg = db.execute(select(Package).where(Package.id == package_id)).scalar_one_or_none()
+    if not pkg:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Package not found")
+    db.delete(pkg)
+    db.commit()
+
+

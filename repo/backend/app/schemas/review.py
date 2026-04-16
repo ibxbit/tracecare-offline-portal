@@ -146,6 +146,7 @@ class ReviewResponse(BaseModel):
     is_followup: bool
     parent_review_id: int | None
     followup_deadline: datetime | None
+    followup_remaining_seconds: int | None = None
 
     credibility_score: float
 
@@ -164,15 +165,26 @@ class ReviewResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    @model_validator(mode="after")
-    def deserialize_tags(self) -> ReviewResponse:
-        """tags is stored as a JSON string in the DB; expose as list."""
-        if isinstance(self.tags, str):
+    @field_validator("tags", mode="before")
+    @classmethod
+    def deserialize_tags(cls, v: object) -> list[str] | None:
+        """tags is stored as a JSON string in the DB; expose as list.
+
+        Runs in mode="before" so it intercepts the raw value produced by the
+        ORM attribute (a JSON string) before pydantic runs its list[str]
+        validation. An earlier mode="after" implementation failed because
+        pydantic rejects the string as invalid for list[str] before the
+        validator has a chance to decode it.
+        """
+        if v is None:
+            return None
+        if isinstance(v, str):
             try:
-                self.tags = json.loads(self.tags)
+                parsed = json.loads(v)
             except (json.JSONDecodeError, TypeError):
-                self.tags = []
-        return self
+                return []
+            return parsed if isinstance(parsed, list) else []
+        return v
 
 
 class ReviewSummary(BaseModel):

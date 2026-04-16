@@ -87,6 +87,18 @@ def get_current_user(
             detail="User not found or inactive",
         )
 
+    # ── 4. Session binding check ──────────────────────────────────────────
+    # If the user has an active session_token_hash, the `sid` claim in the
+    # token must hash to the same value.  Clearing session_token_hash (logout-all)
+    # invalidates all outstanding tokens.
+    sid = payload.get("sid")
+    if user.session_token_hash is not None:
+        if sid is None or _session_hash(sid) != user.session_token_hash:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session invalidated. Please log in again.",
+            )
+
     return user
 
 

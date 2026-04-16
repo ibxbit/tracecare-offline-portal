@@ -48,14 +48,27 @@ export const useOfflineStore = defineStore('offline', () => {
 
   /** Clear all cache entries for the current user and reset to anonymous scope. */
   function cacheClearAll() {
+    // Use the standard Web Storage API (length + key(i)) instead of
+    // Object.keys(localStorage). Object.keys only works on real browser
+    // Storage objects via host magic; in plain-object test stubs it
+    // returns method names, so real keys never match.
+    function _keys() {
+      const out = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k) out.push(k)
+      }
+      return out
+    }
+
     const prefix = _prefix()
-    Object.keys(localStorage)
+    _keys()
       .filter(k => k.startsWith(prefix))
       .forEach(k => localStorage.removeItem(k))
     _userId.value = 'anon'
-    // Remove any keys for the previous user after switching to anon
+    // Remove any stale keys for the now-anonymous scope too.
     const anonPrefix = _prefix()
-    Object.keys(localStorage)
+    _keys()
       .filter(k => k.startsWith(anonPrefix))
       .forEach(k => localStorage.removeItem(k))
   }

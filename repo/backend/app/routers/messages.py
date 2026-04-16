@@ -276,55 +276,7 @@ def inbox_unread_count(
     return {"unread_count": count}
 
 
-@router.get("/threads", response_model=list[ThreadBrief])
-def list_threads(
-    archived: bool = Query(default=False),
-    order_id: int | None = Query(default=None),
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """List threads where the current user is a participant."""
-    # Get thread IDs where user participates
-    participant_rows = db.execute(
-        select(ThreadParticipant).where(ThreadParticipant.user_id == current_user.id)
-    ).scalars().all()
-    thread_ids = [p.thread_id for p in participant_rows]
-    unread_map = {p.thread_id: p.unread_count for p in participant_rows}
-
-    if not thread_ids:
-        return []
-
-    q = (
-        select(Thread)
-        .where(Thread.id.in_(thread_ids), Thread.is_archived == archived)
-        .options(selectinload(Thread.participants), selectinload(Thread.messages))
-    )
-    if order_id is not None:
-        q = q.where(Thread.order_id == order_id)
-    q = q.order_by(Thread.updated_at.desc()).offset(skip).limit(limit)
-
-    threads = db.execute(q).scalars().all()
-
-    briefs = []
-    for t in threads:
-        last_msg = t.messages[-1].created_at if t.messages else None
-        briefs.append(ThreadBrief(
-            id=t.id,
-            subject=t.subject,
-            order_id=t.order_id,
-            use_virtual_ids=t.use_virtual_ids,
-            is_archived=t.is_archived,
-            participant_count=len(t.participants),
-            last_message_at=last_msg,
-            my_unread_count=unread_map.get(t.id, 0),
-            created_at=t.created_at,
-        ))
-    return [b.model_dump() for b in briefs]
-
-
-@router.get("/{message_id}", response_model=MessageResponse)
+@router.get("/{message_id:int}", response_model=MessageResponse)
 def get_message(
     message_id: int,
     db: Session = Depends(get_db),
@@ -348,7 +300,7 @@ def get_message(
     )
 
 
-@router.patch("/{message_id}/read", response_model=MessageResponse)
+@router.patch("/{message_id:int}/read", response_model=MessageResponse)
 def mark_message_read(
     message_id: int,
     db: Session = Depends(get_db),
@@ -368,7 +320,7 @@ def mark_message_read(
     )
 
 
-@router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{message_id:int}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_message(
     message_id: int,
     db: Session = Depends(get_db),
@@ -480,6 +432,54 @@ def create_thread(
     db.commit()
 
     return _build_thread_response(thread, current_user.id)
+
+
+@router.get("/threads", response_model=list[ThreadBrief])
+def list_threads(
+    archived: bool = Query(default=False),
+    order_id: int | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List threads where the current user is a participant."""
+    # Get thread IDs where user participates
+    participant_rows = db.execute(
+        select(ThreadParticipant).where(ThreadParticipant.user_id == current_user.id)
+    ).scalars().all()
+    thread_ids = [p.thread_id for p in participant_rows]
+    unread_map = {p.thread_id: p.unread_count for p in participant_rows}
+
+    if not thread_ids:
+        return []
+
+    q = (
+        select(Thread)
+        .where(Thread.id.in_(thread_ids), Thread.is_archived == archived)
+        .options(selectinload(Thread.participants), selectinload(Thread.messages))
+    )
+    if order_id is not None:
+        q = q.where(Thread.order_id == order_id)
+    q = q.order_by(Thread.updated_at.desc()).offset(skip).limit(limit)
+
+    threads = db.execute(q).scalars().all()
+
+    briefs = []
+    for t in threads:
+        last_msg = t.messages[-1].created_at if t.messages else None
+        briefs.append(ThreadBrief(
+            id=t.id,
+            subject=t.subject,
+            order_id=t.order_id,
+            use_virtual_ids=t.use_virtual_ids,
+            is_archived=t.is_archived,
+            participant_count=len(t.participants),
+            last_message_at=last_msg,
+            my_unread_count=unread_map.get(t.id, 0),
+            created_at=t.created_at,
+        ))
+    return briefs
 
 
 @router.get("/threads/{thread_id}", response_model=ThreadResponse)

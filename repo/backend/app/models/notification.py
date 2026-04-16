@@ -7,9 +7,19 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
-# Retry schedule in minutes: first attempt immediately, then 1, 5, 15 min
-RETRY_SCHEDULE_MINUTES = [1, 5, 15]
-MAX_DELIVERY_ATTEMPTS = len(RETRY_SCHEDULE_MINUTES) + 1  # initial + 3 retries = 4
+
+import os
+from app.config import settings
+
+def _parse_retry_schedule():
+    val = os.getenv("NOTIFICATION_RETRY_SCHEDULE_MINUTES", getattr(settings, "NOTIFICATION_RETRY_SCHEDULE_MINUTES", "1,5,15"))
+    try:
+        return [int(x) for x in val.split(",") if x.strip()]
+    except Exception:
+        return [1, 5, 15]
+
+RETRY_SCHEDULE_MINUTES = _parse_retry_schedule()
+MAX_DELIVERY_ATTEMPTS = len(RETRY_SCHEDULE_MINUTES) + 1  # initial + N retries
 
 
 class NotificationStatus(str, enum.Enum):

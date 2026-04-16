@@ -7,8 +7,9 @@ services:
       POSTGRES_PASSWORD: tracecare
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No host port exposed — avoids clashes with other Postgres instances.
+    # Internal service-to-service traffic uses port 5432 on the Docker network.
+    # Connect from host: docker compose -p tracecare exec db psql -U tracecare
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tracecare"]
       interval: 10s
@@ -19,12 +20,15 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://tracecare:tracecare@db:5432/tracecare
-      SECRET_KEY: change-me-32-char-secret-key-here-00
+      # Dev-only secret; backend fail-fast rejects anything containing
+      # "change-me" or shorter than 32 chars. Override in production.
+      SECRET_KEY: dev-only-secret-6b1a4c2e8f3d7a5b9c0e1f2a4b6d8e0f
       ENCRYPTION_KEY: Xk5MdUQ3c3pZSmtkekFLQ0lDN0NJcTlUMVVsR3BaTks=
       ACCESS_TOKEN_EXPIRE_MINUTES: "15"
       REFRESH_TOKEN_EXPIRE_HOURS: "12"
-    ports:
-      - "8000:8000"
+    # No host port exposed — avoids clashes with other backends.
+    # The frontend nginx container proxies /api/* to http://backend:8000.
+    # Access the API from host via http://localhost:3000/api/*.
     depends_on:
       db:
         condition: service_healthy
@@ -50,7 +54,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://tracecare:tracecare@db:5432/tracecare
-      SECRET_KEY: change-me-32-char-secret-key-here-00
+      SECRET_KEY: dev-only-secret-6b1a4c2e8f3d7a5b9c0e1f2a4b6d8e0f
       ENCRYPTION_KEY: Xk5MdUQ3c3pZSmtkekFLQ0lDN0NJcTlUMVVsR3BaTks=
       ACCESS_TOKEN_EXPIRE_MINUTES: "15"
       REFRESH_TOKEN_EXPIRE_HOURS: "12"
@@ -65,6 +69,26 @@ services:
       - ./API_tests:/API_tests
     command: >
       sh -c "cd /app && python -m pytest /unit_tests /API_tests -v --tb=short --no-header"
+    profiles:
+      - test
+
+  frontend-tester:
+    # Vitest runs under jsdom. Dependencies are baked into the image at
+    # build time (see frontend/Dockerfile.test) so the runtime command
+    # does NOT perform `npm install` — no network dependency when tests
+    # execute, which keeps CI reproducible.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    working_dir: /app
+    # Bind-mount the sources on top of /app so local edits are picked up
+    # without a rebuild. The named volume keeps the image's node_modules
+    # visible even when the bind mount shadows /app.
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/vitest.config.js:/app/vitest.config.js
+      - ./frontend/vite.config.js:/app/vite.config.js
+    command: ["npm", "run", "test"]
     profiles:
       - test
 

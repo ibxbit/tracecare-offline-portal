@@ -405,7 +405,7 @@ async function fetchReviews() {
     const params = { skip: filters.skip, limit: filters.limit, sort_by: filters.sort_by }
     if (filters.search) params.search = filters.search
     if (filters.subject_type) params.subject_type = filters.subject_type
-    if (filters.min_rating) params.rating_min = filters.min_rating  // backend param is rating_min
+    if (filters.min_rating) params.rating_min = filters.min_rating
     if (filters.verified_only) params.verified_only = true
     const res = await api.get('/reviews', { params })
     reviews.value = res.data.map(r => ({ ...r, _expand: false }))
